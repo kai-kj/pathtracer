@@ -97,25 +97,28 @@ Color cast_ray(Scene *scene, Ray ray) {
 	return scene->bgColor;
 }
 
-void render(Scene *scene, Camera *camera, Image *image) {
+void render_frame(Scene *scene, Camera *camera, Image *image, int frame) {
 	float tanFOV = tan(camera->fov / 2);
 	float aspectRatio = (float)image->width / (float)image->height;
 
-	for(int i = 0; i < camera->samples; i++) {
-		for(int row = 0; row < image->height; row++) {
-			for(int column = 0; column < image->width; column++) {
-				Color *pixel = &image->data[column + row * image->width];
+	for(int row = 0; row < image->height; row++) {
+		for(int column = 0; column < image->width; column++) {
+			Color *pixel = &image->data[column + row * image->width];
 
-				float y = - (2 * (row + rand_float()) / image->height - 1) * tanFOV;
-				float x = (2 * (column + rand_float()) / image->width - 1) * tanFOV * aspectRatio;
+			float y = - (2 * (row + rand_float()) / image->height - 1) * tanFOV;
+			float x = (2 * (column + rand_float()) / image->width - 1) * tanFOV * aspectRatio;
 
-				Ray ray = (Ray){(Vec3f){0, 0, 0}, vec3f_normalise((Vec3f){x, y, -1})};
+			Ray ray = (Ray){(Vec3f){0, 0, 0}, vec3f_normalise((Vec3f){x, y, -1})};
 
-				Color color = cast_ray(scene, ray);
-				*pixel = color_div_scalar(color_add(color_mul_scalar(*pixel, i), color), i + 1);
-			}
+			Color color = cast_ray(scene, ray);
+			*pixel = color_div_scalar(color_add(color_mul_scalar(*pixel, frame), color), frame + 1);
 		}
+	}
+}
 
+void render(Scene *scene, Camera *camera, Image *image) {
+	for(int i = 0; i < camera->samples; i++) {
+		render_frame(scene, camera, image, i);
 		printf("%d/%d samples (%f%%)\r", i + 1, camera->samples, (float)(i + 1) / camera->samples * 100);
 		fflush(stdout);
 	}
@@ -126,11 +129,13 @@ void render(Scene *scene, Camera *camera, Image *image) {
 #define WIDTH 400
 #define HEIGHT 300
 #define FOV PI / 3
-#define SAMPLES 200
+#define SAMPLES 50
 
 #include "scenes.h"
 
 int main(void) {
+	struct timeval A, B;
+
 	Image *image = create_image(WIDTH, HEIGHT, (Color){0, 0, 0});
 
 	// scene
@@ -140,13 +145,19 @@ int main(void) {
 	Camera camera = (Camera){PI / 3, SAMPLES};
 
 	// render image
+	gettimeofday(&A, NULL);
+
 	render(scene, &camera, image);
+
+	gettimeofday(&B, NULL);
 
 	// write image
 	gamma_correct_image(image);
 	write_image(image, "test.ppm");
 
 	destroy_image(image);
+
+	printf("done (%f[s])\n", (float)(B.tv_sec - A.tv_sec) + (float)(B.tv_usec - A.tv_usec) / 1000000);
 
 	return 0;
 }
