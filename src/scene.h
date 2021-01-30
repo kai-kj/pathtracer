@@ -1,11 +1,7 @@
 #ifndef SCENE_H
 #define SCENE_H
 
-#include <stdlib.h>
-#include "../include/k_image.h"
 #include "geometry.h"
-
-typedef struct Sphere Sphere;
 
 typedef struct Scene {
 	Color bgColor;
@@ -21,5 +17,6 @@ typedef struct Camera {
 Scene *init_scene(Color bgColor);
 void destroy_scene(Scene *scene);
 void add_sphere(Scene *scene, Sphere sphere);
+int hit_object(Scene *scene, Ray *ray, HitInfo *info);
 
 #endif

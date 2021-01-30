@@ -2,7 +2,6 @@
 #define MATERIALS_H
 
 #include "../include/k_image.h"
-
 typedef struct Material {
 	int type;
 	Color color;

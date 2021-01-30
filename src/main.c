@@ -40,53 +40,53 @@ Vec3f refraction_dir(Vec3f in, Vec3f normal, float relativeRefIdx) {
     return vec3f_add(outParallel, outPerpendicular);
 }
 
-Color cast_ray(Scene *scene, Ray ray) {
+Color cast_ray(Scene *scene, Ray *ray) {
 	HitInfo *info = malloc(sizeof(HitInfo));
 
 	if(hit_object(scene, ray, info)) {
 		Vec3f offsettedHitPos = vec3f_add(info->pos, vec3f_mul_scalar(info->normal, -EPSILON));
+		Color *self = &info->material->color;
 
 		switch(info->material->type) {
 			case 0: /* light source */ {
-				return info->material->color;
+				return *self;
 			}
 
 			case 1: /* lambertian material */ {
 				Vec3f target = vec3f_add3(offsettedHitPos, info->normal, random_unit_vector());
-				Color reflected = cast_ray(scene, (Ray){offsettedHitPos, vec3f_sub(target, offsettedHitPos)});
-				Color self = info->material->color;
+				Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, vec3f_sub(target, offsettedHitPos)});
 				float reflectance = info->material->reflectance;
 				
-				return color_mul(color_mul_scalar(reflected, reflectance), color_mul_scalar(self, 1 - reflectance)); 
+				return color_mul(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance)); 
 			}
 
 			case 2: /* metal material */ {
-				Vec3f target = vec3f_add(reflection_dir(ray.direction, info->normal), vec3f_mul_scalar(random_unit_vector(), info->material->fuzzyness));
-				Color reflected = cast_ray(scene, (Ray){offsettedHitPos, target});
-				Color self = info->material->color;
+				Vec3f target = vec3f_add(reflection_dir(ray->direction, info->normal), vec3f_mul_scalar(random_unit_vector(), info->material->fuzzyness));
+				Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, target});
 				float reflectance = info->material->reflectance;
 				
-				return color_add(color_mul_scalar(reflected, reflectance), color_mul_scalar(self, 1 - reflectance));
+				return color_add(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance));
 			}
 
 			case 3: /* dielectric material */ {
 				float relativeRefIdx;
-				if(!info->front)
-					relativeRefIdx = 1 / info->material->refIdx;
-				else
+
+				if(info->front) /* entering material */
 					relativeRefIdx = info->material->refIdx;
+				else /* exiting material */
+					relativeRefIdx = 1 / info->material->refIdx;
 				
-				double cosTheta = min_f(vec3f_dot(vec3f_mul_scalar(ray.direction, -1), info->normal), 1);
+				double cosTheta = min_f(vec3f_dot(vec3f_mul_scalar(ray->direction, -1), info->normal), 1);
             	double sinTheta = sqrt(1 - cosTheta * cosTheta);
 				
-				if (relativeRefIdx * sinTheta > 1 || reflectance(cosTheta, relativeRefIdx) > rand_float()) {
-					Vec3f target = reflection_dir(ray.direction, info->normal);
-					Color reflected = cast_ray(scene, (Ray){offsettedHitPos, target});
+				if (relativeRefIdx * sinTheta > 1 || reflectance(cosTheta, relativeRefIdx) > rand_float()) /* ray can't refract */ {
+					Vec3f target = reflection_dir(ray->direction, info->normal);
+					Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, target});
 					return(reflected);
 
-				} else {
-					Vec3f target =refraction_dir(ray.direction, info->normal, relativeRefIdx);
-					Color refracted = cast_ray(scene, (Ray){offsettedHitPos, target});
+				} else  /* ray can refract */ {
+					Vec3f target =refraction_dir(ray->direction, info->normal, relativeRefIdx);
+					Color refracted = cast_ray(scene, &(Ray){offsettedHitPos, target});
 					return(refracted);
 					
 				}
@@ -102,15 +102,16 @@ void render_frame(Scene *scene, Camera *camera, Image *image, int frame) {
 	float aspectRatio = (float)image->width / (float)image->height;
 
 	for(int row = 0; row < image->height; row++) {
+		float y = - (2 * (row + rand_float()) / image->height - 1) * tanFOV;
+
 		for(int column = 0; column < image->width; column++) {
 			Color *pixel = &image->data[column + row * image->width];
 
-			float y = - (2 * (row + rand_float()) / image->height - 1) * tanFOV;
 			float x = (2 * (column + rand_float()) / image->width - 1) * tanFOV * aspectRatio;
 
 			Ray ray = (Ray){(Vec3f){0, 0, 0}, vec3f_normalise((Vec3f){x, y, -1})};
 
-			Color color = cast_ray(scene, ray);
+			Color color = cast_ray(scene, &ray);
 			*pixel = color_div_scalar(color_add(color_mul_scalar(*pixel, frame), color), frame + 1);
 		}
 	}
@@ -129,9 +130,9 @@ void render(Scene *scene, Camera *camera, Image *image) {
 #define WIDTH 400
 #define HEIGHT 300
 #define FOV PI / 3
-#define SAMPLES 50
+#define SAMPLES 200
 
-#include "scenes.h"
+#include "load_scenes.h"
 
 int main(void) {
 	struct timeval A, B;
@@ -144,17 +145,18 @@ int main(void) {
 	// camera
 	Camera camera = (Camera){PI / 3, SAMPLES};
 
-	// render image
 	gettimeofday(&A, NULL);
 
+	// render image
 	render(scene, &camera, image);
-
+	
 	gettimeofday(&B, NULL);
 
 	// write image
 	gamma_correct_image(image);
 	write_image(image, "test.ppm");
 
+	destroy_scene(scene);
 	destroy_image(image);
 
 	printf("done (%f[s])\n", (float)(B.tv_sec - A.tv_sec) + (float)(B.tv_usec - A.tv_usec) / 1000000);

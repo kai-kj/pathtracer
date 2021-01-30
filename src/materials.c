@@ -1,5 +1,7 @@
 #include "materials.h"
 
+#include "../include/k_image.h"
+
 Material create_lambertian_material(Color color, float reflectance) {
 	return (Material){1, color, reflectance, 0, 0};
 }

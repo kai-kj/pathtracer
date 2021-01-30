@@ -1,13 +1,8 @@
 #ifndef GEOMETRY_H
 #define GEOMETRY_H
 
-#include <stdlib.h>
-#include <math.h>
 #include "../include/k_math.h"
 #include "materials.h"
-#include "scene.h"
-
-typedef struct Scene Scene;
 
 typedef struct Ray {
 	Vec3f origin;
@@ -28,7 +23,6 @@ typedef struct HitInfo {
 	Material *material;
 } HitInfo;
 
-int hit_sphere(Ray ray, Sphere *sphere, float *distance);
-int hit_object(Scene *scene, Ray ray, HitInfo *info);
+int hit_sphere(Ray *ray, Sphere *sphere, float *distance);
 
 #endif
