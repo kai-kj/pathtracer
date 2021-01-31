@@ -42,6 +42,7 @@ Vec3f refraction_dir(Vec3f in, Vec3f normal, float relativeRefIdx) {
 
 Color cast_ray(Scene *scene, Ray *ray) {
 	HitInfo *info = malloc(sizeof(HitInfo));
+	Color color;
 
 	if(hit_object(scene, ray, info)) {
 		Vec3f offsettedHitPos = vec3f_add(info->pos, vec3f_mul_scalar(info->normal, -EPSILON));
@@ -49,7 +50,8 @@ Color cast_ray(Scene *scene, Ray *ray) {
 
 		switch(info->material->type) {
 			case 0: /* light source */ {
-				return *self;
+				color = *self;
+				break;
 			}
 
 			case 1: /* lambertian material */ {
@@ -57,7 +59,8 @@ Color cast_ray(Scene *scene, Ray *ray) {
 				Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, vec3f_sub(target, offsettedHitPos)});
 				float reflectance = info->material->reflectance;
 				
-				return color_mul(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance)); 
+				color = color_mul(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance));
+				break;
 			}
 
 			case 2: /* metal material */ {
@@ -65,7 +68,8 @@ Color cast_ray(Scene *scene, Ray *ray) {
 				Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, target});
 				float reflectance = info->material->reflectance;
 				
-				return color_add(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance));
+				color = color_add(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance));
+				break;
 			}
 
 			case 3: /* dielectric material */ {
@@ -82,19 +86,25 @@ Color cast_ray(Scene *scene, Ray *ray) {
 				if (relativeRefIdx * sinTheta > 1 || reflectance(cosTheta, relativeRefIdx) > rand_float()) /* ray can't refract */ {
 					Vec3f target = reflection_dir(ray->direction, info->normal);
 					Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, target});
-					return(reflected);
+					color = reflected;
+					break;
 
 				} else  /* ray can refract */ {
 					Vec3f target =refraction_dir(ray->direction, info->normal, relativeRefIdx);
 					Color refracted = cast_ray(scene, &(Ray){offsettedHitPos, target});
-					return(refracted);
+					color = refracted;
+					break;
 					
 				}
 			}
 		}
+	
+	} else {
+		color = scene->bgColor;
 	}
-
-	return scene->bgColor;
+	
+	free(info);
+	return color;
 }
 
 void render_frame(Scene *scene, Camera *camera, Image *image, int frame) {
@@ -130,7 +140,7 @@ void render(Scene *scene, Camera *camera, Image *image) {
 #define WIDTH 400
 #define HEIGHT 300
 #define FOV PI / 3
-#define SAMPLES 200
+#define SAMPLES 2000
 
 #include "load_scenes.h"
 
@@ -140,7 +150,7 @@ int main(void) {
 	Image *image = create_image(WIDTH, HEIGHT, (Color){0, 0, 0});
 
 	// scene
-	Scene *scene = load_scene2();
+	Scene *scene = load_scene1();
 	
 	// camera
 	Camera camera = (Camera){PI / 3, SAMPLES};
