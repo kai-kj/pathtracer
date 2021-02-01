@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/sysinfo.h>
 
 #define K_IMAGE_IMPLEMENTATION
 #include "../include/k_image.h"
@@ -40,70 +41,71 @@ Vec3f refraction_dir(Vec3f in, Vec3f normal, float relativeRefIdx) {
     return vec3f_add(outParallel, outPerpendicular);
 }
 
-Color cast_ray(Scene *scene, Ray *ray) {
-	HitInfo *info = malloc(sizeof(HitInfo));
-	Color color;
+Color cast_ray(Scene *scene, Ray *ray, int depth) {
+	Color color = scene->bgColor;
 
-	if(hit_object(scene, ray, info)) {
-		Vec3f offsettedHitPos = vec3f_add(info->pos, vec3f_mul_scalar(info->normal, -EPSILON));
-		Color *self = &info->material->color;
+	if(depth > 0) {
+		HitInfo *info = malloc(sizeof(HitInfo));
 
-		switch(info->material->type) {
-			case 0: /* light source */ {
-				color = *self;
-				break;
-			}
+		if(hit_object(scene, ray, info)) {
+			Vec3f offsettedHitPos = vec3f_add(info->pos, vec3f_mul_scalar(info->normal, -EPSILON));
+			Color *self = &info->material->color;
 
-			case 1: /* lambertian material */ {
-				Vec3f target = vec3f_add3(offsettedHitPos, info->normal, random_unit_vector());
-				Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, vec3f_sub(target, offsettedHitPos)});
-				float reflectance = info->material->reflectance;
-				
-				color = color_mul(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance));
-				break;
-			}
-
-			case 2: /* metal material */ {
-				Vec3f target = vec3f_add(reflection_dir(ray->direction, info->normal), vec3f_mul_scalar(random_unit_vector(), info->material->fuzzyness));
-				Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, target});
-				float reflectance = info->material->reflectance;
-				
-				color = color_add(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance));
-				break;
-			}
-
-			case 3: /* dielectric material */ {
-				float relativeRefIdx;
-
-				if(info->front) /* entering material */
-					relativeRefIdx = info->material->refIdx;
-				else /* exiting material */
-					relativeRefIdx = 1 / info->material->refIdx;
-				
-				double cosTheta = min_f(vec3f_dot(vec3f_mul_scalar(ray->direction, -1), info->normal), 1);
-            	double sinTheta = sqrt(1 - cosTheta * cosTheta);
-				
-				if (relativeRefIdx * sinTheta > 1 || reflectance(cosTheta, relativeRefIdx) > rand_float()) /* ray can't refract */ {
-					Vec3f target = reflection_dir(ray->direction, info->normal);
-					Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, target});
-					color = reflected;
+			switch(info->material->type) {
+				case 0: /* light source */ {
+					color = *self;
 					break;
+				}
 
-				} else  /* ray can refract */ {
-					Vec3f target =refraction_dir(ray->direction, info->normal, relativeRefIdx);
-					Color refracted = cast_ray(scene, &(Ray){offsettedHitPos, target});
-					color = refracted;
-					break;
+				case 1: /* lambertian material */ {
+					Vec3f target = vec3f_add3(offsettedHitPos, info->normal, random_unit_vector());
+					Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, vec3f_sub(target, offsettedHitPos)}, depth - 1);
+					float reflectance = info->material->reflectance;
 					
+					color = color_mul(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance));
+					break;
+				}
+
+				case 2: /* metal material */ {
+					Vec3f target = vec3f_add(reflection_dir(ray->direction, info->normal), vec3f_mul_scalar(random_unit_vector(), info->material->fuzzyness));
+					Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, target}, depth - 1);
+					float reflectance = info->material->reflectance;
+					
+					color = color_add(color_mul_scalar(reflected, reflectance), color_mul_scalar(*self, 1 - reflectance));
+					break;
+				}
+
+				case 3: /* dielectric material */ {
+					float relativeRefIdx;
+
+					if(info->front) /* entering material */
+						relativeRefIdx = info->material->refIdx;
+					else /* exiting material */
+						relativeRefIdx = 1 / info->material->refIdx;
+					
+					double cosTheta = min_f(vec3f_dot(vec3f_mul_scalar(ray->direction, -1), info->normal), 1);
+					double sinTheta = sqrt(1 - cosTheta * cosTheta);
+					
+					if (relativeRefIdx * sinTheta > 1 || reflectance(cosTheta, relativeRefIdx) > rand_float()) /* ray can't refract */ {
+						Vec3f target = reflection_dir(ray->direction, info->normal);
+						Color reflected = cast_ray(scene, &(Ray){offsettedHitPos, target}, depth - 1);
+						color = reflected;
+						break;
+
+					} else  /* ray can refract */ {
+						Vec3f target =refraction_dir(ray->direction, info->normal, relativeRefIdx);
+						Color refracted = cast_ray(scene, &(Ray){offsettedHitPos, target}, depth - 1);
+						color = refracted;
+						break;
+						
+					}
 				}
 			}
 		}
-	
-	} else {
-		color = scene->bgColor;
+
+		free(info);
 	}
 	
-	free(info);
 	return color;
 }
 
@@ -121,13 +123,21 @@ void render_frame(Scene *scene, Camera *camera, Image *image, int frame) {
 
 			Ray ray = (Ray){(Vec3f){0, 0, 0}, vec3f_normalise((Vec3f){x, y, -1})};
 
-			Color color = cast_ray(scene, &ray);
+			Color color = cast_ray(scene, &ray, camera->maxDepth);
 			*pixel = color_div_scalar(color_add(color_mul_scalar(*pixel, frame), color), frame + 1);
 		}
 	}
 }
 
-void render(Scene *scene, Camera *camera, Image *image) {
+#define WIDTH 400
+#define HEIGHT 300
+#define FOV PI / 3
+#define SAMPLES 100
+#define MAX_DEPTH 10
+
+#include "load_scenes.h"
+
+void render(Image *image, Scene *scene, Camera *camera) {
 	for(int i = 0; i < camera->samples; i++) {
 		render_frame(scene, camera, image, i);
 		printf("%d/%d samples (%f%%)\r", i + 1, camera->samples, (float)(i + 1) / camera->samples * 100);
@@ -137,32 +147,20 @@ void render(Scene *scene, Camera *camera, Image *image) {
 	printf("\nDONE\n");
 }
 
-#define WIDTH 400
-#define HEIGHT 300
-#define FOV PI / 3
-#define SAMPLES 2000
-
-#include "load_scenes.h"
-
 int main(void) {
 	struct timeval A, B;
 
 	Image *image = create_image(WIDTH, HEIGHT, (Color){0, 0, 0});
-
-	// scene
-	Scene *scene = load_scene1();
-	
-	// camera
-	Camera camera = (Camera){PI / 3, SAMPLES};
+	Scene *scene = load_scene3();
+	Camera camera = (Camera){FOV, SAMPLES, MAX_DEPTH};
 
 	gettimeofday(&A, NULL);
 
 	// render image
-	render(scene, &camera, image);
+	render(image, scene, &camera);
 	
 	gettimeofday(&B, NULL);
 
-	// write image
 	gamma_correct_image(image);
 	write_image(image, "test.ppm");
 

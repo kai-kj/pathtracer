@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include "../include/k_image.h"
+#include "geometry.h"
 
 Scene *init_scene(Color bgColor) {
 	Scene *scene = malloc(sizeof(Scene));
@@ -14,7 +15,9 @@ void destroy_scene(Scene *scene) {
 	free(scene);
 }
 
-void add_sphere(Scene *scene, Sphere sphere) {
+void add_sphere(Scene *scene, float x, float y, float z, float radius, Material material) {
+	Sphere sphere = (Sphere){(Vec3f){x, y, z}, radius, material};
+
 	scene->sphereCount++;
 	scene->spheres = realloc(scene->spheres, sizeof(Sphere) * scene->sphereCount);
 	scene->spheres[scene->sphereCount - 1] = sphere;

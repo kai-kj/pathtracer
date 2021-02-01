@@ -141,6 +141,12 @@ void write_image(Image *image, char *fileName) {
 
 }
 
+/*
+void write_image_stb(Image *image, char *filelname) {
+	fprintf(fp, "P3 %d %d 255\n", image->width, image->height);
+}
+*/
+
 #endif
 
 #endif
