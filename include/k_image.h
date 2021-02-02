@@ -33,6 +33,7 @@ Image *create_image(unsigned int width, unsigned int height, Color bgColor);
 void destroy_image(Image *image);
 void gamma_correct_image(Image *image);
 void write_image(Image *image, char *fileName);
+void write_image_stb(Image *image, char *filename);
 
 //----------------------------------------------------------------------------//
 // implementation                                                             //
@@ -43,7 +44,19 @@ void write_image(Image *image, char *fileName);
 #include <stdio.h>
 #include <string.h>
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 //---- private functions -----------------------------------------------------//
+
+static char *get_filename_ext(char *filename) {
+    char *dot = strrchr(filename, '.');
+
+    if(!dot || dot == filename)
+		return "";
+	
+    return dot + 1;
+}
 
 //---- public functions ------------------------------------------------------//
 
@@ -141,11 +154,48 @@ void write_image(Image *image, char *fileName) {
 
 }
 
-/*
-void write_image_stb(Image *image, char *filelname) {
-	fprintf(fp, "P3 %d %d 255\n", image->width, image->height);
+void write_image_stb(Image *image, char *filename) {
+	unsigned char *data = malloc(image->width * image->height * 3);
+
+	for(int i = 0; i < image->height; i++) {
+		for(int j = 0; j < image->width; j++) {
+			int pos = j + i * image->width;
+
+			if(image->data[pos].r < 0)
+				image->data[pos].r = 0;
+			if(image->data[pos].g < 0)
+				image->data[pos].g = 0;
+			if(image->data[pos].b < 0)
+				image->data[pos].b = 0;
+			
+			if(image->data[pos].r > 1)
+				image->data[pos].r = 1;
+			if(image->data[pos].g > 1)
+				image->data[pos].g = 1;
+			if(image->data[pos].b > 1)
+				image->data[pos].b = 1;
+
+			data[pos * 3 + 0] = (int)(image->data[pos].r * 255);
+			data[pos * 3 + 1] = (int)(image->data[pos].g * 255);
+			data[pos * 3 + 2] = (int)(image->data[pos].b * 255);
+		}
+	}
+
+	char *format = get_filename_ext(filename);
+
+	if(strcmp(format, "png") == 0) {
+		stbi_write_png(filename, image->width, image->height, 3, data, 0);
+
+	} else if(strcmp(format, "bmp") == 0) {
+		stbi_write_bmp(filename, image->width, image->height, 3, data);
+
+	} else if(strcmp(format, "jpg") == 0) {
+		stbi_write_jpg(filename, image->width, image->height, 3, data, 95);
+
+	}
+
+	free(data);
 }
-*/
 
 #endif
 

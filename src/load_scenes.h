@@ -6,10 +6,7 @@ Scene *load_scene1() {
 
 	Material lightSource = create_light_source_material((Color){1, 1, 1});
 	Material lightSourceGreen = create_light_source_material((Color){0, 1, 0});
-	Material lambertianRed = create_lambertian_material((Color){1, 0, 0}, 0.5);
 	Material lambertianWhite = create_lambertian_material((Color){1, 1, 1}, 0.5);
-	Material mirror = create_metal_material((Color){0, 0, 0}, 1, 0);
-	Material fuzzyMirror = create_metal_material((Color){0, 0, 0}, 1, 0.5);
 	Material glass = create_dielectric_material((Color){0, 0, 0}, 0.8, 0);
 
 	add_sphere(scene, 0, -101, -8, 100, lambertianWhite);
@@ -28,7 +25,6 @@ Scene *load_scene2() {
 	Material lambertianRed = create_lambertian_material((Color){1, 0, 0}, 0.5);
 	Material lambertianWhite = create_lambertian_material((Color){1, 1, 1}, 0.5);
 	Material mirror = create_metal_material((Color){0, 0, 0}, 1, 0);
-	Material fuzzyMirror = create_metal_material((Color){0, 0, 0}, 1, 0.5);
 	Material glass = create_dielectric_material((Color){0, 0, 0}, 0.8, 0);
 
 	add_sphere(scene, -10, 10, 0, 5, lightSource);

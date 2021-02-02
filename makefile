@@ -73,10 +73,9 @@ profile: $(BIN)
 clean:
 	$(RM) $(BIN)
 	$(RM) $(BUILDDIR)
-	$(RM) gmon.out
-	$(RM) profile.dot
-	$(RM) profile.output
-	$(RM) *.ppm
+	$(RM) gmon.out profile.dot profile.output
+	$(RM) *.png *.jpg *.bmp
+	$(RM) *log.txt
 
 #------------------------------------------------------------------------------#
 # build process                                                                #

@@ -1,6 +1,2 @@
-*
-!.gitignore
-!.git/
-!include/
-!src/
-!makefile
+pathtracer
+build

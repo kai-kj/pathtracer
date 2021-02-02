@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include <pthread.h>
 #include <sys/time.h>
@@ -12,9 +12,37 @@
 #define K_MATH_IMPLEMENTATION
 #include "../include/k_math.h"
 
+#define K_LOG_IMPLEMENTATION
+#define K_LOG_PRINT_TO_SCREEN
+#define K_LOG_PRINT_TO_FILE
+#include "../include/k_log.h"
+
 #include "materials.h"
 #include "geometry.h"
 #include "scene.h"
+#include "load_scenes.h"
+
+#define WIDTH 400
+#define HEIGHT 300
+#define FOV PI / 3
+#define SAMPLES 200
+#define MAX_DEPTH 10
+
+double get_time() {
+	struct timeval time;
+	gettimeofday(&time, NULL);
+
+	return (double)time.tv_sec + (double)time.tv_usec / 1000000;
+}
+
+int sec_to_min(int seconds) {
+	return seconds / 60;
+}
+
+int sec_to_h(int seconds) {
+	return sec_to_min(seconds) / 60;
+}
+
 
 Vec3f random_unit_vector() {
     while(1) {
@@ -114,11 +142,10 @@ void render_frame(Scene *scene, Camera *camera, Image *image, int frame) {
 	float aspectRatio = (float)image->width / (float)image->height;
 
 	for(int row = 0; row < image->height; row++) {
-		float y = - (2 * (row + rand_float()) / image->height - 1) * tanFOV;
-
 		for(int column = 0; column < image->width; column++) {
 			Color *pixel = &image->data[column + row * image->width];
 
+			float y = - (2 * (row + rand_float()) / image->height - 1) * tanFOV;
 			float x = (2 * (column + rand_float()) / image->width - 1) * tanFOV * aspectRatio;
 
 			Ray ray = (Ray){(Vec3f){0, 0, 0}, vec3f_normalise((Vec3f){x, y, -1})};
@@ -129,45 +156,40 @@ void render_frame(Scene *scene, Camera *camera, Image *image, int frame) {
 	}
 }
 
-#define WIDTH 400
-#define HEIGHT 300
-#define FOV PI / 3
-#define SAMPLES 100
-#define MAX_DEPTH 10
-
-#include "load_scenes.h"
-
-void render(Image *image, Scene *scene, Camera *camera) {
+void render(Image *image, Scene *scene, Camera *camera, long startTime) {
 	for(int i = 0; i < camera->samples; i++) {
 		render_frame(scene, camera, image, i);
-		printf("%d/%d samples (%f%%)\r", i + 1, camera->samples, (float)(i + 1) / camera->samples * 100);
-		fflush(stdout);
+
+		float frameTime = (get_time() - startTime) / (i + 1);
+		float et = (camera->samples - (i * 1)) * frameTime;
+		int h = sec_to_h(et);
+		int min = sec_to_min(et) - h * 60;
+		int sec = et - min * 60;
+		msg("%d/%d samples (%f%%), ET: %02d:%02d:%02d\r", i + 1, camera->samples, (float)(i + 1) / camera->samples * 100, h, min, sec);
 	}
 
-	printf("\nDONE\n");
+	msg("\nDONE\n");
 }
 
 int main(void) {
-	struct timeval A, B;
-
 	Image *image = create_image(WIDTH, HEIGHT, (Color){0, 0, 0});
 	Scene *scene = load_scene3();
 	Camera camera = (Camera){FOV, SAMPLES, MAX_DEPTH};
 
-	gettimeofday(&A, NULL);
+	double startTime = get_time();
 
 	// render image
-	render(image, scene, &camera);
+	render(image, scene, &camera, startTime);
 	
-	gettimeofday(&B, NULL);
+	double endTime = get_time();
 
 	gamma_correct_image(image);
-	write_image(image, "test.ppm");
+	write_image_stb(image, "test.png");
 
 	destroy_scene(scene);
 	destroy_image(image);
 
-	printf("done (%f[s])\n", (float)(B.tv_sec - A.tv_sec) + (float)(B.tv_usec - A.tv_usec) / 1000000);
+	msg("done (%g[s])\n", endTime - startTime);
 
 	return 0;
 }
