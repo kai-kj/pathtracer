@@ -22,10 +22,10 @@
 #include "scene.h"
 #include "load_scenes.h"
 
-#define WIDTH 400
-#define HEIGHT 300
+#define WIDTH 1920
+#define HEIGHT 1080
 #define FOV PI / 3
-#define SAMPLES 200
+#define SAMPLES 2000
 #define MAX_DEPTH 10
 
 double get_time() {
@@ -164,8 +164,8 @@ void render(Image *image, Scene *scene, Camera *camera, long startTime) {
 		float et = (camera->samples - (i * 1)) * frameTime;
 		int h = sec_to_h(et);
 		int min = sec_to_min(et) - h * 60;
-		int sec = et - min * 60;
-		msg("%d/%d samples (%f%%), ET: %02d:%02d:%02d\r", i + 1, camera->samples, (float)(i + 1) / camera->samples * 100, h, min, sec);
+		int sec = et - h * 360 - min * 60;
+		msg("%d/%d samples (%f%%), ET: %02d:%02d:%02d\n", i + 1, camera->samples, (float)(i + 1) / camera->samples * 100, h, min, sec);
 	}
 
 	msg("\nDONE\n");
