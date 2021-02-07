@@ -23,22 +23,21 @@
 
 #define WIDTH 400
 #define HEIGHT 300
-#define FOV PI / 3
-#define SAMPLES 100
+#define SAMPLES 1000
 #define MAX_DEPTH 10
+#define FOV PI / 3
+
+void gen_seeds(cl_ulong *ptr, int count) {
+	for(int i = 0; i < count; i++) {
+		ptr[i] = rand();
+	}
+}
 
 int main(void) {
+	double startTime = get_time();
 
 	//---- initialise values -------------------------------------------------//
 	int pixelCount = WIDTH * HEIGHT;
-
-	cl_float3 *finalImage = malloc(sizeof(cl_float3) * pixelCount);
-
-	for(int i = 0; i < pixelCount; i++) {
-		finalImage[i].x = 0;
-		finalImage[i].y = 0;
-		finalImage[i].z = 0;
-	}
 
 	Scene scene = {
 		.sphereCount = 0,
@@ -57,7 +56,7 @@ int main(void) {
 
 	Sphere *sphereList = malloc(sizeof(Sphere));
 
-	Material lightSource = create_light_source_material((Color){50, 50, 25});
+	Material lightSource = create_light_source_material((Color){10, 10, 5});
 	Material white = create_lambertian_material((Color){1, 1, 1}, 0.5);
 	Material red = create_lambertian_material((Color){1, 0, 0}, 0.5);
 	Material green = create_lambertian_material((Color){0, 1, 0}, 0.5);
@@ -108,39 +107,34 @@ int main(void) {
 
 	//---- setup buffers -----------------------------------------------------//
 
-	// random numbers
-	srand(time(0));
-	cl_ulong *baseOffsets = malloc(sizeof(cl_long) * pixelCount);
+	cl_ulong *seedList = malloc(sizeof(cl_ulong) * pixelCount);
 
 	// create buffers
 	cl_mem imageBuff = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(cl_float3) * pixelCount, NULL, NULL);
 	cl_mem sphereBuff = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(Sphere) * scene.sphereCount, NULL, NULL);
-	cl_mem offsetBuff = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_long) * pixelCount, NULL, NULL);
+	cl_mem seedBuff = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_ulong) * pixelCount, NULL, NULL);
 
 	// copy data to buffers
 	clEnqueueWriteBuffer(commandQueue, sphereBuff, CL_TRUE, 0, sizeof(Sphere) * scene.sphereCount, sphereList, 0, NULL, NULL);
-	clEnqueueWriteBuffer(commandQueue, offsetBuff, CL_TRUE, 0, sizeof(cl_long) * pixelCount, baseOffsets, 0, NULL, NULL);
 
 	//---- render image ------------------------------------------------------//
 
 	msg("\nSTARTING RENDER (%dx%d, %d samples)\n\n", camera.width, camera.height, camera.samples);
 
-	double startTime = get_time();
+	double renderStartTime = get_time();
 
-	cl_float3 *image = malloc(sizeof(cl_float3) * pixelCount);
+	for(cl_int frame = 0; frame < camera.samples; frame++) {
+		gen_seeds(seedList, pixelCount);
 
-	for(cl_int frame = 0; frame < 1; frame++) {
+		clEnqueueWriteBuffer(commandQueue, seedBuff, CL_TRUE, 0, sizeof(cl_ulong) * pixelCount, seedList, 0, NULL, NULL);
+
 		// set kernel arguments
-		for(int i = 0; i < pixelCount; i++) {
-			baseOffsets[i] = rand();
-		}
-
 		clSetKernelArg(kernel, 0, sizeof(cl_mem), &imageBuff);
 		clSetKernelArg(kernel, 1, sizeof(Scene), &scene);
 		clSetKernelArg(kernel, 2, sizeof(Camera), &camera);
 		clSetKernelArg(kernel, 3, sizeof(cl_mem), &sphereBuff);
 		clSetKernelArg(kernel, 4, sizeof(cl_int), &frame);
-		clSetKernelArg(kernel, 5, sizeof(cl_mem), &offsetBuff);
+		clSetKernelArg(kernel, 5, sizeof(cl_mem), &seedBuff);
 
 		// run program
 		size_t workItems = camera.width * camera.height;
@@ -205,52 +199,62 @@ int main(void) {
 				break;
 		}
 
-		clEnqueueReadBuffer(commandQueue, imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, image, 0, NULL, NULL);
+		clFinish(commandQueue);
 
-		for(int i = 0; i < pixelCount; i++) {
-			finalImage[i].x = (finalImage[i].x * frame + image[i].x) / (frame + 1);
-			finalImage[i].y = (finalImage[i].y * frame + image[i].y) / (frame + 1);
-			finalImage[i].z = (finalImage[i].z * frame + image[i].z) / (frame + 1);
+		// print time
+		if(frame % 10 == 9) {
+			float frameTime = (get_time() - renderStartTime) / (frame + 1);
+			float et = (camera.samples - (frame * 1)) * frameTime;
+			int h = sec_to_h(et);
+			int min = sec_to_min(et) - h * 60;
+			int sec = et - h * 360 - min * 60;
+			msg("\r%d/%d samples (%f%%), ET: %02d:%02d:%02d", frame + 1, camera.samples, (float)(frame + 1) / camera.samples * 100, h, min, sec);
 		}
 	}
 
-	double endTime = get_time();
-
-	msg("\nFINISHED RENDER\n\n");
+	double renderEndTime = get_time();
 
 	// read image
+	cl_float3 *image = malloc(sizeof(cl_float3) * pixelCount);
 	clEnqueueReadBuffer(commandQueue, imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, image, 0, NULL, NULL);
-
-	/*
-	printf("%f, %f, %f\n", image[0].x, image[0].y, image[0].z);
-	printf("%f, %f, %f\n\n", image[1].x, image[1].y, image[1].z);
-	*/
 
 	// cleanup opencl
 	clReleaseMemObject(imageBuff);
 	clReleaseMemObject(sphereBuff);
-	clReleaseMemObject(offsetBuff);
+	clReleaseMemObject(seedBuff);
 	clReleaseProgram(program);
 	clReleaseKernel(kernel);
 	clReleaseCommandQueue(commandQueue);
 	clReleaseContext(context);
 
 	//---- write image -------------------------------------------------------//
-
-	printf("%f, %f, %f\n", image[0].x, image[0].y, image[0].z);
-	printf("%f, %f, %f\n", image[1].x, image[1].y, image[1].z);
-
-	gamma_correct_image(finalImage, pixelCount);
-	write_image(finalImage, WIDTH, HEIGHT, "test.png");
+	
+	gamma_correct_image(image, pixelCount);
+	write_image(image, WIDTH, HEIGHT, "test.png");
 
 	//---- cleanup -----------------------------------------------------------//
 
-	float time = endTime - startTime;
+	free(sphereList);
+	free(seedList);
+	free(image);
+
+	//---- printf info -------------------------------------------------------//
+
+	double endTime = get_time();
+
+	float time = renderEndTime - renderStartTime;
 	int h = sec_to_h(time);
 	int min = sec_to_min(time) - h * 60;
 	float sec = time - h * 3600 - min * 60;
 
-	msg("\nDONE (%02d:%02d:%.2f)\n\n", h, min, sec);
+	msg("\nDONE (render: %02d:%02d:%.2f, ", h, min, sec);
+
+	time = endTime - startTime;
+	h = sec_to_h(time);
+	min = sec_to_min(time) - h * 60;
+	sec = time - h * 3600 - min * 60;
+
+	msg("tot: %02d:%02d:%.2f)\n\n", h, min, sec);
 
 	return 0;
 }

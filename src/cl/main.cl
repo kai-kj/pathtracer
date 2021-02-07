@@ -1,5 +1,3 @@
-#include "include/mwc64x.cl"
-
 //---- structs ---------------------------------------------------------------//
 
 typedef struct Ray {
@@ -35,19 +33,28 @@ typedef struct Sphere {
 	Material material;
 } Sphere;
 
-//---- maths functions -------------------------------------------------------//
+//---- rng (not great, but works) --------------------------------------------//
 
-float rand_float(mwc64x_state_t *rng) {
-	return MWC64X_NextUint(rng) / (float)4294967295;
+ulong init_rng_1(ulong a) {
+	return (16807 * a) % 2147483647 * (16807 * a) % 2147483647;
 }
 
-float rand_float_in_range(float a, float b, mwc64x_state_t *rng) {
+ulong init_rng_2(ulong a, ulong b) {
+	return (16807 * a * b) % 2147483647 * (16807 * a * b) % 2147483647;
+}
+
+float rand_float(ulong *rng) {
+	*rng = (16807 * *rng) % 2147483647;
+	return *rng / 2147483647.0;
+}
+
+float rand_float_in_range(float a, float b, ulong *rng) {
 	return a + rand_float(rng) * (b - a);
 }
 
 //---- small functions -------------------------------------------------------//
 
-float3 random_unit_vector(mwc64x_state_t *rng) {
+float3 random_unit_vector(ulong *rng) {
 	while(1) {
 		float3 r;
 		r.x = rand_float_in_range(-1, 1, rng);
@@ -97,7 +104,7 @@ int hit_sphere(Ray ray, Sphere sphere, float *distance) {
 
 //---- main ray function -----------------------------------------------------//
 
-float3 cast_ray(Scene scene, global Sphere *sphereList, Ray firstRay, int maxDepth, mwc64x_state_t *rng) {
+float3 cast_ray(Scene scene, global Sphere *sphereList, Ray firstRay, int maxDepth, ulong *rng) {
 	Ray ray = firstRay;
 
 	float3 color = 0;
@@ -148,7 +155,7 @@ float3 cast_ray(Scene scene, global Sphere *sphereList, Ray firstRay, int maxDep
 		} else if(sphere.material.type == 2) { // metal materia
 			float3 direction = reflection_dir(ray.direction, normal);
 			ray = (Ray){offsettedHitPos, direction};
-			mask *= sphere.material.color;
+			// mask *= sphere.material.color
 
 		} else if(sphere.material.type == 3) { // dielectric material
 			float relativeRefIdx;
@@ -170,6 +177,7 @@ float3 cast_ray(Scene scene, global Sphere *sphereList, Ray firstRay, int maxDep
 				direction = refraction_dir(ray.direction, normal, relativeRefIdx);
 
 			ray = (Ray){offsettedHitPos, direction};
+			// mask *= sphere.material.color
 		}
 	}
 
@@ -178,10 +186,11 @@ float3 cast_ray(Scene scene, global Sphere *sphereList, Ray firstRay, int maxDep
 
 //---- main ------------------------------------------------------------------//
 
-kernel void main(global float3 *image, Scene scene, Camera camera, global Sphere *sphereList, int frame, global ulong *baseOffset) {
+kernel void main(global float3 *image, Scene scene, Camera camera, global Sphere *sphereList, int frame, global ulong *seedList) {
 	int id = (int)get_global_id(0);
+	ulong rng = init_rng_1(seedList[id]);
 	
-	/*
+	
 	int row = id / camera.width;
 	int column = id % camera.width;
 
@@ -193,17 +202,12 @@ kernel void main(global float3 *image, Scene scene, Camera camera, global Sphere
 
 	Ray ray = (Ray){(float3){0, 0, 0}, normalize((float3){x, y, -1})};
 
-	image[id] = cast_ray(scene, sphereList, ray, camera.maxDepth, &rng);
-	*/
-
-	ulong seed = baseOffset[id];
-	seed = (seed * 0x5DEECE66DL + 0xBL) & ((1L << 48) - 1);
-	uint result = seed >> 16;
-
-	image[id] = (float)result / 4294967295;
+	float3 color = cast_ray(scene, sphereList, ray, camera.maxDepth, &rng);
+	image[id] = (image[id] * frame + color) / (frame + 1);
+	
 
 	//if(id == 0) {
-	//	image[id] = camera.maxDepth;
+		//image[id] = random_unit_vector(&rng);
 	//}
 
 }
