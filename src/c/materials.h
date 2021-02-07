@@ -1,14 +1,15 @@
 #ifndef MATERIALS_H
 #define MATERIALS_H
 
-#include "../include/k_image.h"
-typedef struct Material {
-	int type;
-	Color color;
+#include "../../include/k_cl_image.h"
 
-	float reflectance;
-	float fuzzyness;
-	float refIdx;
+typedef struct Material {
+	cl_int type;
+	cl_float3 color;
+
+	cl_float reflectance;
+	cl_float fuzzyness;
+	cl_float refIdx;
 } Material;
 
 Material create_lambertian_material(Color color, float reflectance);

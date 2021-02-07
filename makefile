@@ -10,7 +10,7 @@
 BIN := pathtracer
 
 # libraries 
-LIBS := -lm -lpthread
+LIBS := -lm -lpthread -lOpenCL
 
 # flags 
 FLAGS := -Wall -Wextra
@@ -29,7 +29,7 @@ ECHO := @echo
 
 # folders 
 BUILDDIR := build
-SRCDIR := src
+SRCDIR := src/c
 LIBDIR := lib
 
 # source files 
