@@ -1,3 +1,5 @@
+#define EPSILSON 0.00001f
+
 //---- structs ---------------------------------------------------------------//
 
 typedef struct Ray {
@@ -55,16 +57,19 @@ float rand_float_in_range(float a, float b, ulong *rng) {
 //---- small functions -------------------------------------------------------//
 
 float3 random_unit_vector(ulong *rng) {
-	while(1) {
-		float3 r;
-		r.x = rand_float_in_range(-1, 1, rng);
-		r.y = rand_float_in_range(-1, 1, rng);
-		r.z = rand_float_in_range(-1, 1, rng);
-		
-		if(pow(r.x, 2) + pow(r.y, 2) + pow(r.z, 2) < 1)
-			return normalize(r);
-		
-	}
+	float3 r;
+
+	float cosTheta = rand_float_in_range(-1, 1, rng);
+	float cosPhi = rand_float_in_range(-1, 1, rng);
+
+	float sinTheta = sqrt(1 - pow(cosTheta, 2));
+	float sinPhi = sqrt(1 - pow(cosPhi, 2));
+
+	r.x = sinTheta * cosPhi;
+	r.y = sinTheta * sinPhi;
+	r.z = cosTheta;
+
+	return r;
 }
 
 float3 reflection_dir(float3 in, float3 normal) {
@@ -85,11 +90,11 @@ float3 refraction_dir(float3 in, float3 normal, float relativeRefIdx) {
 }
 
 int hit_sphere(Ray ray, Sphere sphere, float *distance) {
-    float3 oc = ray.origin - sphere.center;
-    float a = pow(length(ray.direction), 2);
-    float bHalf = dot(oc, ray.direction);
-    float c = pow(oc.x, 2) + pow(oc.y, 2) + pow(oc.z, 2) - pow(sphere.radius, 2);
-    float discriminant = pow(bHalf, 2) - a * c;
+	float3 oc = ray.origin - sphere.center;
+	float a = pow(length(ray.direction), 2);
+	float bHalf = dot(oc, ray.direction);
+	float c = pow(oc.x, 2) + pow(oc.y, 2) + pow(oc.z, 2) - pow(sphere.radius, 2);
+	float discriminant = pow(bHalf, 2) - a * c;
 
 	if(discriminant < 0)
 		return 0;
@@ -127,12 +132,14 @@ float3 cast_ray(Scene scene, global Sphere *sphereList, Ray firstRay, int maxDep
 			}
 		}
 
-		if(!hit)
+		if(!hit) {
+			color = mask * scene.bgColor;
 			break;
-		
+		}
+
 		float3 hitPos = ray.origin + ray.direction * distance;
 		float3 normal = normalize(hitPos - sphere.center);
-		float3 offsettedHitPos = hitPos + normal * FLT_EPSILON;
+		float3 offsettedHitPos = hitPos + normal * -EPSILSON;
 		bool front;
 
 		if(dot(ray.direction, normal) > 0) {
@@ -160,12 +167,12 @@ float3 cast_ray(Scene scene, global Sphere *sphereList, Ray firstRay, int maxDep
 		} else if(sphere.material.type == 3) { // dielectric material
 			float relativeRefIdx;
 
-			if(front) /* entering material */
+			if(front) // entering material
 				relativeRefIdx = sphere.material.refIdx;
-			else /* exiting material */
+			else // exiting material
 				relativeRefIdx = 1 / sphere.material.refIdx;
 			
-			float cosTheta = fmin(dot(ray.direction * -1, normal), 1);
+			float cosTheta = fmin(dot(-ray.direction, normal), 1);
 			float sinTheta = sqrt(1 - pow(cosTheta, 2));
 			
 			float3 direction;
@@ -186,11 +193,11 @@ float3 cast_ray(Scene scene, global Sphere *sphereList, Ray firstRay, int maxDep
 
 //---- main ------------------------------------------------------------------//
 
-kernel void main(global float3 *image, Scene scene, Camera camera, global Sphere *sphereList, int frame, global ulong *seedList) {
+kernel void main(global float3 *image, Scene scene, Camera camera, global Sphere *sphereList, int frame, ulong seed) {
 	int id = (int)get_global_id(0);
-	ulong rng = init_rng_1(seedList[id]);
+	ulong rng = init_rng_2(id, seed);
 	
-	
+
 	int row = id / camera.width;
 	int column = id % camera.width;
 
@@ -204,10 +211,10 @@ kernel void main(global float3 *image, Scene scene, Camera camera, global Sphere
 
 	float3 color = cast_ray(scene, sphereList, ray, camera.maxDepth, &rng);
 	image[id] = (image[id] * frame + color) / (frame + 1);
-	
 
-	//if(id == 0) {
-		//image[id] = random_unit_vector(&rng);
-	//}
+
+	// if(id == 0) {
+		// image[id] = rand_float(&rng);
+	// }
 
 }

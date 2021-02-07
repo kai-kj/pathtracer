@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <CL/cl.h>
+
 #include "materials.h"
 
 typedef struct Sphere {

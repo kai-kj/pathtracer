@@ -56,7 +56,7 @@ int main(void) {
 
 	Sphere *sphereList = malloc(sizeof(Sphere));
 
-	Material lightSource = create_light_source_material((Color){10, 10, 5});
+	Material lightSource = create_light_source_material((Color){5, 5, 2.5});
 	Material white = create_lambertian_material((Color){1, 1, 1}, 0.5);
 	Material red = create_lambertian_material((Color){1, 0, 0}, 0.5);
 	Material green = create_lambertian_material((Color){0, 1, 0}, 0.5);
@@ -64,11 +64,15 @@ int main(void) {
 	Material glass = create_dielectric_material((Color){0, 0, 0}, 0.95, 0);
 
 	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 0, 54.98, -10, 50, lightSource);
+
 	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 0, 105, -10, 100, white);
+	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 0, -105, -10, 100, white);
+	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 0, 0, -120, 100, white);
+	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 0, 0, 100, 100, white);
+
 	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 105, 0, -5, 100, green);
 	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, -105, 0, -5, 100, red);
-	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 0, 0, -120, 100, white);
-	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 0, -105, -10, 100, white);
+	
 	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, -2.5, -3, -10, 2, glass);
 	scene.sphereCount = add_sphere(sphereList, scene.sphereCount, 2, -4, -15, 1, mirror);
 
@@ -107,12 +111,9 @@ int main(void) {
 
 	//---- setup buffers -----------------------------------------------------//
 
-	cl_ulong *seedList = malloc(sizeof(cl_ulong) * pixelCount);
-
 	// create buffers
 	cl_mem imageBuff = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(cl_float3) * pixelCount, NULL, NULL);
 	cl_mem sphereBuff = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(Sphere) * scene.sphereCount, NULL, NULL);
-	cl_mem seedBuff = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_ulong) * pixelCount, NULL, NULL);
 
 	// copy data to buffers
 	clEnqueueWriteBuffer(commandQueue, sphereBuff, CL_TRUE, 0, sizeof(Sphere) * scene.sphereCount, sphereList, 0, NULL, NULL);
@@ -124,9 +125,7 @@ int main(void) {
 	double renderStartTime = get_time();
 
 	for(cl_int frame = 0; frame < camera.samples; frame++) {
-		gen_seeds(seedList, pixelCount);
-
-		clEnqueueWriteBuffer(commandQueue, seedBuff, CL_TRUE, 0, sizeof(cl_ulong) * pixelCount, seedList, 0, NULL, NULL);
+		cl_ulong seed = rand();
 
 		// set kernel arguments
 		clSetKernelArg(kernel, 0, sizeof(cl_mem), &imageBuff);
@@ -134,7 +133,7 @@ int main(void) {
 		clSetKernelArg(kernel, 2, sizeof(Camera), &camera);
 		clSetKernelArg(kernel, 3, sizeof(cl_mem), &sphereBuff);
 		clSetKernelArg(kernel, 4, sizeof(cl_int), &frame);
-		clSetKernelArg(kernel, 5, sizeof(cl_mem), &seedBuff);
+		clSetKernelArg(kernel, 5, sizeof(cl_ulong), &seed);
 
 		// run program
 		size_t workItems = camera.width * camera.height;
@@ -221,7 +220,6 @@ int main(void) {
 	// cleanup opencl
 	clReleaseMemObject(imageBuff);
 	clReleaseMemObject(sphereBuff);
-	clReleaseMemObject(seedBuff);
 	clReleaseProgram(program);
 	clReleaseKernel(kernel);
 	clReleaseCommandQueue(commandQueue);
@@ -235,7 +233,6 @@ int main(void) {
 	//---- cleanup -----------------------------------------------------------//
 
 	free(sphereList);
-	free(seedList);
 	free(image);
 
 	//---- printf info -------------------------------------------------------//
