@@ -22,10 +22,10 @@
 #include "scene.h"
 #include "load_scenes.h"
 
-#define WIDTH 1920
-#define HEIGHT 1080
+#define WIDTH 400
+#define HEIGHT 300
 #define FOV PI / 3
-#define SAMPLES 2000
+#define SAMPLES 1000
 #define MAX_DEPTH 10
 
 double get_time() {
