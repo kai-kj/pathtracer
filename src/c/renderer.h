@@ -3,6 +3,8 @@
 #include "../../include/k_util.h"
 #include "../../include/k_cl_image.h"
 
+#include "opencl.h"
+
 typedef struct Material {
 	cl_int type;
 	cl_float3 color;
