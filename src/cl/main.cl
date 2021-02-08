@@ -31,7 +31,7 @@ float3 cast_ray(SceneInfo scene, global Sphere *sphereList, Ray firstRay, int ma
 
 		float3 hitPos = ray.origin + ray.direction * distance;
 		float3 normal = normalize(hitPos - sphere.center);
-		float3 offsettedHitPos = hitPos + normal * -EPSILSON;
+		float3 offsettedHitPos = hitPos - normal * 0.0001f;
 		bool front;
 
 		if(dot(ray.direction, normal) > 0) {
@@ -50,7 +50,7 @@ float3 cast_ray(SceneInfo scene, global Sphere *sphereList, Ray firstRay, int ma
 
 		} else if(sphere.material.type == 1) { // lambertian material
 			if(front) {
-				float3 direction = offsettedHitPos + normal + random_unit_vector(rng) - offsettedHitPos;
+				float3 direction = normal + random_unit_vector(rng);
 				ray = (Ray){offsettedHitPos, direction};
 				mask *= sphere.material.color;
 			}
@@ -105,12 +105,11 @@ kernel void main(global float3 *image, SceneInfo scene, Camera camera, global Sp
 
 	float xOffset = 2 * (float)(column - camera.resolution.x / 2) / (float)camera.resolution.x * camera.sensorWidth;
 	float yOffset = 2 * (float)(row - camera.resolution.y / 2) / (float)camera.resolution.y * camera.sensorWidth / aspectRatio;
+	float3 offset = (float3){-xOffset, yOffset, camera.focalLength};
 
-	float3 origin = camera.pos + (float3){-xOffset, yOffset, camera.focalLength}; 
+	float3 origin = camera.pos + rotate_vector(offset, camera.rot);
+
 	float3 target = camera.pos + random_unit_vector(&rng) * camera.aperture;
-
-	float3 camPosToOrigin = rotate_vector(origin - camera.pos, camera.rot);
-	origin = camera.pos + camPosToOrigin;
 
 	float3 direction = normalize(target - origin);
 

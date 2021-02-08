@@ -20,22 +20,27 @@
 
 #include "renderer.h"
 
-// fast
+// testing
 #define WIDTH 400
 #define HEIGHT 300
 #define SAMPLES 100
 
+// fast
+// #define WIDTH 960
+// #define HEIGHT 540
+// #define SAMPLES 1000
+
 // 1080p
 // #define WIDTH 1920
 // #define HEIGHT 1080
-// #define SAMPLES 3000
+// #define SAMPLES 2000
 
 // 4k
 // #define WIDTH 3840
 // #define HEIGHT 2160
-// #define SAMPLES 3000
+// #define SAMPLES 10000
 
-#define MAX_DEPTH 20
+#define MAX_DEPTH 50
 #define FOV PI / 3
 #define WALL_RADIUS 10000
 
@@ -53,14 +58,16 @@ int main(void) {
 	};
 
 	Camera camera = {
-		//.pos = {.x = 0, .y = 0, .z = 20},
-		//.rot = {.x = 0, .y = 0, .z = 0},
-		.pos = {.x = 2, .y = 10, .z = -12},
-		.rot = {.x = -PI / 4, .y = 0, .z = 0},
+		// .pos = {.x = 0, .y = 0, .z = 10},
+		// .rot = {.x = 0, .y = 0, .z = 0},
+		.pos = {.x = 2, .y = 2, .z = -15},
+		.rot = {.x = -PI / 2, .y = 0, .z = 0},
+		// .pos = {.x = 2, .y = -3, .z = -10},
+		// .rot = {.x = 0, .y = 0, .z = 0},
 		.resolution = {.x = WIDTH, .y = HEIGHT},
 		.useDOF = 0,
-		.sensorWidth = 0.5,
-		.focalLength = 2,
+		.sensorWidth = 0.05,
+		.focalLength = 0.1,
 		.aperture = 0.001,
 		.exposure = 1000,
 		.samples = SAMPLES,

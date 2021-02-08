@@ -52,8 +52,7 @@ cl_float3 *render(SceneInfo sceneInfo, Camera camera, Sphere *sphereList, int ve
 	cl_program program = clCreateProgramWithSource(context, 1, &source, NULL, NULL);
 
 	// build program
-	// -cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math
-	if(clBuildProgram(program, 0, NULL, "-I src/cl -Werror", NULL, NULL) != CL_SUCCESS) {
+	if(clBuildProgram(program, 0, NULL, "-I src/cl -Werror -cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math", NULL, NULL) != CL_SUCCESS) {
 		msg("Failed to build program\n");
 
 		char buffer[0x100000];

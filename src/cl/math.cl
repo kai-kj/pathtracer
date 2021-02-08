@@ -1,5 +1,3 @@
-#define EPSILSON 0.00001f
-
 typedef struct Ray {
 	float3 origin;
 	float3 direction;
@@ -39,16 +37,18 @@ typedef struct Sphere {
 } Sphere;
 
 float3 rotate_vector(float3 vec, float3 rot) {
-	vec.x = vec.x * cos(rot.z) - vec.y * sin(rot.z);
-    vec.y = vec.x * sin(rot.z) + vec.y * cos(rot.z);
+	float3 nVec;
+	
+	nVec.x = vec.x * cos(rot.z) - vec.y * sin(rot.z);
+	nVec.y = vec.x * sin(rot.z) + vec.y * cos(rot.z);
 
-    vec.x = vec.x * cos(rot.y) + vec.z * sin(rot.y);
-    vec.z = -vec.x * sin(rot.y) + vec.z * cos(rot.y);
+	nVec.x = vec.x * cos(rot.y) + vec.z * sin(rot.y);
+	nVec.z = -vec.x * sin(rot.y) + vec.z * cos(rot.y);
 
-    vec.y = vec.y * cos(rot.x) - vec.z * sin(rot.x);
-    vec.z = vec.y * sin(rot.x) + vec.z * cos(rot.x);
+	nVec.y = vec.y * cos(rot.x) - vec.z * sin(rot.x);
+	nVec.z = vec.y * sin(rot.x) + vec.z * cos(rot.x);
 
-	return vec;
+	return nVec;
 }
 
 float3 reflection_dir(float3 in, float3 normal) {
