@@ -10,7 +10,7 @@
 BIN := pathtracer
 
 # libraries 
-LIBS := -lm -lpthread -lOpenCL
+LIBS := -lm -lpthread -lOpenCL -llua
 
 # flags 
 FLAGS := -Wall -Wextra -DCL_TARGET_OPENCL_VERSION=300

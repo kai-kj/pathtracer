@@ -13,6 +13,10 @@
 // #define K_LOG_PRINT_TO_SCREEN
 // #define K_LOG_PRINT_TO_FILE
 
+double get_time();
+int sec_to_min(int seconds);
+int sec_to_h(int seconds);
+char *read_file(char *fileName);
 void msg(char *format, ...);
 
 //----------------------------------------------------------------------------//
