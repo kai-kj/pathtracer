@@ -61,6 +61,7 @@ Renderer *create_renderer() {
 	Renderer *renderer = malloc(sizeof(Renderer));
 
 	renderer->sceneInfo.sphereCount = 0;
+	renderer->sphereList = NULL;
 
 	// get platforms
 	cl_uint platformNum;
@@ -247,9 +248,12 @@ Image *render(Renderer *renderer, int samples, int verbose) {
 			int h = sec_to_h(et);
 			int min = sec_to_min(et) - h * 60;
 			int sec = et - h * 360 - min * 60;
-			msg("\r%d/%d samples (%f%%), ET: %02d:%02d:%02d", frame + 1, samples, (float)(frame + 1) / samples * 100, h, min, sec);
+			msg("%d/%d samples (%f%%), ET: %02d:%02d:%02d\r", frame + 1, samples, (float)(frame + 1) / samples * 100, h, min, sec);
 		}
 	}
+
+	if(verbose)
+		printf("\n");
 
 	// read image
 	int pixelCount = renderer->imageInfo.size.x * renderer->imageInfo.size.y;
