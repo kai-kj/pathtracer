@@ -1,2 +1,9 @@
 pathtracer
 build
+gmon.out
+profile.dot
+profile.output
+*.png
+*.jpg
+*.bmp
+log.txt

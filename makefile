@@ -10,10 +10,10 @@
 BIN := pathtracer
 
 # libraries 
-LIBS := -lm -lpthread
+LIBS := -lm -lpthread -lOpenCL -llua
 
 # flags 
-FLAGS := -Wall -Wextra
+FLAGS := -Wall -Wextra -DCL_TARGET_OPENCL_VERSION=300
 
 #------------------------------------------------------------------------------#
 # other variables                                                              #
@@ -29,7 +29,7 @@ ECHO := @echo
 
 # folders 
 BUILDDIR := build
-SRCDIR := src
+SRCDIR := src/c
 LIBDIR := lib
 
 # source files 
@@ -75,7 +75,7 @@ clean:
 	$(RM) $(BUILDDIR)
 	$(RM) gmon.out profile.dot profile.output
 	$(RM) *.png *.jpg *.bmp
-	$(RM) *log.txt
+	$(RM) *.txt
 
 #------------------------------------------------------------------------------#
 # build process                                                                #
