@@ -2,6 +2,10 @@
 // k_util.h                                                                //
 //============================================================================//
 
+#define K_LOG_PRINT_TO_SCREEN
+#define K_LOG_PRINT_TO_FILE
+#define K_LOG_FILE "log.txt"
+
 //----------------------------------------------------------------------------//
 // interface                                                                  //
 //----------------------------------------------------------------------------//
@@ -26,6 +30,7 @@ void msg(char *format, ...);
 #ifdef K_UTIL_IMPLEMENTATION
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <sys/time.h>
 

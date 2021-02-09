@@ -75,7 +75,7 @@ clean:
 	$(RM) $(BUILDDIR)
 	$(RM) gmon.out profile.dot profile.output
 	$(RM) *.png *.jpg *.bmp
-	$(RM) *log.txt
+	$(RM) *.txt
 
 #------------------------------------------------------------------------------#
 # build process                                                                #
