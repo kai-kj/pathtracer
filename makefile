@@ -58,22 +58,15 @@ debug: FLAGS += -g
 debug: $(BIN)
 	gdb $<
 
-# compile for profiling
-compile_profile: FLAGS += -pg
-compile_profile: $(BIN)
-
 # compile and profile project
-profile: FLAGS += -pg
 profile: $(BIN)
-	./$<
-	gprof $(BIN) gmon.out > profile.output
-	gprof2dot profile.output -o profile.dot
+	valgrind --tool=callgrind ./$<
 
 # clean project 
 clean:
 	$(RM) $(BIN)
 	$(RM) $(BUILDDIR)
-	$(RM) gmon.out profile.dot profile.output
+	$(RM) *.out.*
 	$(RM) *.png *.jpg *.bmp
 	$(RM) *.txt
 

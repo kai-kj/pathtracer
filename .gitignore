@@ -1,8 +1,6 @@
 pathtracer
 build
-gmon.out
-profile.dot
-profile.output
+*.out.*
 *.png
 *.jpg
 *.bmp

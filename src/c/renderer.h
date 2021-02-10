@@ -73,6 +73,10 @@ void set_background_color(
 	float r, float g, float b
 );
 
+void clear_scene(
+	Renderer *renderer
+);
+
 Material create_lambertian_material(
 	float r, float g, float b
 );

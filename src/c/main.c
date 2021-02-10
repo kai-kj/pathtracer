@@ -11,9 +11,19 @@
 
 #include "lua_wrapper.h"
 
-int main(void) {
-	lua_State *l = create_script("scripts/main.lua");
-	run_script(l, "main");
+int main(int argc, char *argv[]) {
+	if(argc < 2 || argc > 3) {
+		msg("argument error\n");
+		return -1;
+	}
+
+	lua_State *l = create_script(argv[1]);
+
+	if(argc == 3)
+		run_script(l, argv[2]);
+	else
+		run_script(l, "main");
+	
 	destroy_script(l);
 
 	return 0;

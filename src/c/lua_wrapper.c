@@ -100,6 +100,14 @@ int l_set_background_color(lua_State *l) {
 	return 0;
 }
 
+int l_clear_scene(lua_State *l) {
+	Renderer *renderer = lua_touserdata(l, 1);
+
+	clear_scene(renderer);
+
+	return 0;
+}
+
 int l_create_lambertian_material(lua_State *l) {
 	float r = luaL_checknumber(l, 1);
 	float g = luaL_checknumber(l, 2);
@@ -241,6 +249,7 @@ lua_State *create_script(char *fileName) {
 		{"create_renderer", l_create_renderer},
 		{"set_image_properties", l_set_image_properties},
 		{"set_background_color", l_set_background_color},
+		{"clear_scene", l_clear_scene},
 		{"create_lambertian_material", l_create_lambertian_material},
 		{"create_metal_material", l_create_metal_material},
 		{"create_dielectric_material", l_create_dielectric_material},

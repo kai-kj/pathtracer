@@ -103,6 +103,15 @@ void set_image_properties(Renderer *renderer, int width, int height, int maxRayD
 	renderer->clProgram.imageBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_WRITE, sizeof(cl_float3) * width * height, NULL, NULL);
 }
 
+void clear_scene(Renderer *renderer) {
+	renderer->sceneInfo.sphereCount = 0;
+
+	if(renderer->sphereList != NULL)
+		free(renderer->sphereList);
+
+	renderer->sphereList = NULL;
+}
+
 void set_background_color(Renderer *renderer, float r, float g, float b) {
 	renderer->sceneInfo.color = (cl_float3){.x = r, .y = g, .z = b};
 }
