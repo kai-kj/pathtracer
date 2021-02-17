@@ -7,7 +7,7 @@
 #------------------------------------------------------------------------------#
 
 # binary name 
-BIN := pathtracer
+BIN := VoxelPathTracer
 
 # libraries 
 LIBS := -lm -lpthread -lOpenCL -llua

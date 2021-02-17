@@ -14,9 +14,8 @@ typedef struct CLProgram {
 	cl_command_queue queue;
 	cl_program program;
 	cl_kernel kernel;
-
 	cl_mem imageBuff;
-	cl_mem sphereBuff;
+	cl_mem worldBuff;
 } CLProgram;
 
 typedef struct ImageInfo {
@@ -26,7 +25,7 @@ typedef struct ImageInfo {
 
 typedef struct SceneInfo {
 	cl_float3 color;
-	cl_int sphereCount;
+	cl_int3 size;
 } SceneInfo;
 
 typedef struct Material {
@@ -36,12 +35,6 @@ typedef struct Material {
 	cl_float fuzzyness;
 	cl_float refIdx;
 } Material;
-
-typedef struct Sphere {
-	cl_float3 center;
-	cl_float radius;
-	Material material;
-} Sphere;
 
 typedef struct Camera {
 	cl_float3 pos;
@@ -54,9 +47,9 @@ typedef struct Camera {
 typedef struct Renderer {
 	CLProgram clProgram;
 	ImageInfo imageInfo;
-	cl_float3 *image;
 	SceneInfo sceneInfo;
-	Sphere *sphereList;
+	cl_float3 *image;
+	cl_int *voxels;
 	Camera camera;
 } Renderer;
 
@@ -92,13 +85,6 @@ Material create_dielectric_material(
 
 Material create_light_source_material(
 	float r, float g, float b
-);
-
-void add_sphere(
-	Renderer *renderer,
-	float x, float y, float z,
-	float radius,
-	Material material
 );
 
 void set_camera_properties(

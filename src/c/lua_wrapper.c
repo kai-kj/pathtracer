@@ -153,19 +153,6 @@ int l_create_light_source_material(lua_State *l) {
 	return 1;
 }
 
-int l_add_sphere(lua_State *l) {
-	Renderer *renderer = lua_touserdata(l, 1);
-	float x = luaL_checknumber(l, 2);
-	float y = luaL_checknumber(l, 3);
-	float z = luaL_checknumber(l, 4);
-	float radius = luaL_checknumber(l, 5);
-	Material material = to_material(l, 6);
-
-	add_sphere(renderer, x, y, z, radius, material);
-
-	return 0;
-}
-
 int l_set_camera_properties(lua_State *l) {
 	Renderer *renderer = lua_touserdata(l, 1);
 	float x = luaL_checknumber(l, 2);
@@ -245,7 +232,6 @@ lua_State *create_script(char *fileName) {
 		{"create_metal_material", l_create_metal_material},
 		{"create_dielectric_material", l_create_dielectric_material},
 		{"create_light_source_material", l_create_light_source_material},
-		{"add_sphere", l_add_sphere},
 		{"set_camera_properties", l_set_camera_properties},
 		{"render", l_render},
 		{"render_to_file", l_render_to_file},

@@ -10,11 +10,11 @@
 
 #define FILE_NAME "src/cl/main.cl"
 #define KERNEL_NAME "main"
-#define PROGRAM_ARGS "-I src/cl -Werror -cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math"
+#define PROGRAM_ARGS "-I src/cl" // -cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math
 
 //---- private functions -----------------------------------------------------//
 
-Image *convert_to_image(cl_float3 *data, int width, int height) {
+static Image *convert_to_image(cl_float3 *data, int width, int height) {
 	Image *image = malloc(sizeof(Image));
 	image->width = width;
 	image->height = height;
@@ -47,7 +47,7 @@ static char *get_filename_ext(char *filename) {
 	return dot + 1;
 }
 
-void gamma_correct_data(cl_float3 *data, int pixelCount) {
+static void gamma_correct_data(cl_float3 *data, int pixelCount) {
 	for(int i = 0; i < pixelCount; i++) {
 		data[i].x = sqrt(data[i].x);
 		data[i].y = sqrt(data[i].y);
@@ -60,8 +60,8 @@ void gamma_correct_data(cl_float3 *data, int pixelCount) {
 Renderer *create_renderer() {
 	Renderer *renderer = malloc(sizeof(Renderer));
 
-	renderer->sceneInfo.sphereCount = 0;
-	renderer->sphereList = NULL;
+	renderer->image = NULL;
+	renderer->voxels = NULL;
 
 	// get platforms
 	cl_uint platformNum;
@@ -78,7 +78,7 @@ Renderer *create_renderer() {
 	// load program
 	const char *source = read_file(FILE_NAME);
 	renderer->clProgram.program = clCreateProgramWithSource(renderer->clProgram.context, 1, &source, NULL, NULL);
-	free((char *)source);
+	free((void *)source);
 
 	// build program
 	if(clBuildProgram(renderer->clProgram.program, 0, NULL, PROGRAM_ARGS, NULL, NULL) != CL_SUCCESS) {
@@ -123,18 +123,6 @@ Material create_light_source_material(float r, float g, float b) {
 	return (Material){0, (cl_float3){.x = r, .y = g, .z = b}, 0, 0, 0};
 }
 
-void add_sphere(Renderer *renderer, float x, float y, float z, float radius, Material material) {
-	cl_float3 center = {.x = x, .y = y, .z = z};
-
-	Sphere sphere = (Sphere){center, radius, material};
-	int sphereCount = renderer->sceneInfo.sphereCount + 1;
-
-	renderer->sphereList = realloc(renderer->sphereList, sizeof(Sphere) * sphereCount);
-	renderer->sphereList[sphereCount - 1] = sphere;
-
-	renderer->sceneInfo.sphereCount = sphereCount;
-}
-
 void set_camera_properties(Renderer *renderer, float x, float y, float z, float rotX, float rotY, float rotZ, float sensorWidth, float focalLength, float aperture, float exposure) {
 	renderer->camera = (Camera){.sensorWidth = sensorWidth, .focalLength = focalLength, .aperture = aperture, .exposure = exposure};
 	renderer->camera.pos = (cl_float3){.x = x, .y = y, .z = z};
@@ -142,34 +130,38 @@ void set_camera_properties(Renderer *renderer, float x, float y, float z, float 
 }
 
 Image *render(Renderer *renderer, int samples, int verbose) {
-	// create buffer for spheres
-	renderer->clProgram.sphereBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(Sphere) * renderer->sceneInfo.sphereCount, NULL, NULL);
-	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.sphereBuff, CL_TRUE, 0, sizeof(Sphere) * renderer->sceneInfo.sphereCount, renderer->sphereList, 0, NULL, NULL);
+	// create buffer for world
+	int voxelCount = renderer->sceneInfo.size.x * renderer->sceneInfo.size.y * renderer->sceneInfo.size.z;
+	renderer->clProgram.worldBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(cl_int) * voxelCount, NULL, NULL);
+	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.worldBuff, CL_TRUE, 0, sizeof(cl_int) * voxelCount, renderer->voxels, 0, NULL, NULL);
 
 	// set permanent kernel arguments
 	clSetKernelArg(renderer->clProgram.kernel, 0, sizeof(cl_mem), &renderer->clProgram.imageBuff);
 	clSetKernelArg(renderer->clProgram.kernel, 1, sizeof(ImageInfo), &renderer->imageInfo);
-	clSetKernelArg(renderer->clProgram.kernel, 2, sizeof(SceneInfo), &renderer->sceneInfo);
-	clSetKernelArg(renderer->clProgram.kernel, 3, sizeof(Camera), &renderer->camera);
-	clSetKernelArg(renderer->clProgram.kernel, 4, sizeof(cl_mem), &renderer->clProgram.sphereBuff);
+	clSetKernelArg(renderer->clProgram.kernel, 2, sizeof(cl_mem), &renderer->clProgram.worldBuff);
+	clSetKernelArg(renderer->clProgram.kernel, 3, sizeof(SceneInfo), &renderer->sceneInfo);
+	clSetKernelArg(renderer->clProgram.kernel, 4, sizeof(Camera), &renderer->camera);
 
 	// render image
 	double renderStartTime = get_time();
 
-	size_t workItems = renderer->imageInfo.size.x * renderer->imageInfo.size.y;
+	size_t pixelCount = renderer->imageInfo.size.x * renderer->imageInfo.size.y;
 
-	for(cl_int frame = 0; frame < samples; frame++) {
+	/*
+	// for(cl_int frame = 0; frame < samples; frame++) {
+		int frame = 0;
 		// seed
 		cl_ulong seed = rand();
 
 		// kernel arguments
 		clSetKernelArg(renderer->clProgram.kernel, 5, sizeof(cl_int), &frame);
 		clSetKernelArg(renderer->clProgram.kernel, 6, sizeof(cl_ulong), &seed);
+		*/
 
 		// run program
-		cl_int ret = clEnqueueNDRangeKernel(renderer->clProgram.queue, renderer->clProgram.kernel, 1, NULL, &workItems, NULL, 0, NULL, NULL);
-			
-		if(verbose) {
+		cl_int ret = clEnqueueNDRangeKernel(renderer->clProgram.queue, renderer->clProgram.kernel, 1, NULL, &pixelCount, NULL, 0, NULL, NULL);
+
+		if(ret != CL_SUCCESS) {
 			switch(ret) {
 				case CL_INVALID_PROGRAM_EXECUTABLE:
 					msg("there is no successfully built program executable available for device associated with command_queue.\n");
@@ -230,18 +222,16 @@ Image *render(Renderer *renderer, int samples, int verbose) {
 				default:
 					break;
 			}
-		}
 
-		if(ret != CL_SUCCESS) {
-			clReleaseMemObject(renderer->clProgram.sphereBuff);
 			destroy_renderer(renderer);
-
-			return NULL;
+			
+			exit(1);
 		}
 		
 		clFinish(renderer->clProgram.queue);
 
 		// print time
+		/*
 		if(verbose && frame % 10 == 9) {
 			float frameTime = (get_time() - renderStartTime) / (frame + 1);
 			float et = (samples - (frame * 1)) * frameTime;
@@ -249,19 +239,19 @@ Image *render(Renderer *renderer, int samples, int verbose) {
 			int min = sec_to_min(et) - h * 60;
 			int sec = et - h * 360 - min * 60;
 			msg("%d/%d samples (%f%%), ET: %02d:%02d:%02d\r", frame + 1, samples, (float)(frame + 1) / samples * 100, h, min, sec);
-		}
-	}
+		}*/
+	// }
 
 	if(verbose)
 		printf("\n");
 
 	// read image
-	int pixelCount = renderer->imageInfo.size.x * renderer->imageInfo.size.y;
-
 	cl_float3 *imageData = malloc(sizeof(cl_float3) * pixelCount);
 	clEnqueueReadBuffer(renderer->clProgram.queue, renderer->clProgram.imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, imageData, 0, NULL, NULL);
 	
 	clFinish(renderer->clProgram.queue);
+
+	printf("(%f, %f, %f)\n", imageData[0].x, imageData[0].y, imageData[0].z);
 
 	gamma_correct_data(imageData, pixelCount);
 
@@ -269,7 +259,7 @@ Image *render(Renderer *renderer, int samples, int verbose) {
 	Image *image = convert_to_image(imageData, renderer->imageInfo.size.x, renderer->imageInfo.size.y);
 
 	// cleanup
-	clReleaseMemObject(renderer->clProgram.sphereBuff);
+	clReleaseMemObject(renderer->clProgram.worldBuff);
 	free(imageData);
 
 	return image;
@@ -289,8 +279,6 @@ void destroy_renderer(Renderer *renderer) {
 	clReleaseKernel(renderer->clProgram.kernel);
 	clReleaseCommandQueue(renderer->clProgram.queue);
 	clReleaseContext(renderer->clProgram.context);
-
-
 }
 
 void write_image(Image *image, char *fileName) {
