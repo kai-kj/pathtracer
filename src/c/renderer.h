@@ -2,11 +2,7 @@
 #define RENDERER_H
 
 #include <CL/cl.h>
-typedef struct Image {
-	int width;
-	int height;
-	unsigned char *data;
-} Image;
+
 typedef struct CLProgram {
 	cl_platform_id platform;
 	cl_device_id device;
@@ -15,26 +11,14 @@ typedef struct CLProgram {
 	cl_program program;
 	cl_kernel kernel;
 	cl_mem imageBuff;
-	cl_mem worldBuff;
+	cl_mem sceneBuff;
 } CLProgram;
 
-typedef struct ImageInfo {
-	cl_int2 size;
-	cl_int maxRayDepth;
-} ImageInfo;
-
-typedef struct SceneInfo {
-	cl_float3 color;
+typedef struct Scene {
 	cl_int3 size;
-} SceneInfo;
-
-typedef struct Material {
-	cl_int type;
-	cl_float3 color;
-	cl_float tint;
-	cl_float fuzzyness;
-	cl_float refIdx;
-} Material;
+	cl_int *data;
+	cl_float3 bgColor;
+} Scene;
 
 typedef struct Camera {
 	cl_float3 pos;
@@ -44,21 +28,38 @@ typedef struct Camera {
 	cl_float aperture;
 	cl_float exposure;
 } Camera;
+
+typedef struct CLImage {
+	cl_int2 size;
+	cl_float3 *data;
+} CLImage;
+
 typedef struct Renderer {
-	CLProgram clProgram;
-	ImageInfo imageInfo;
-	SceneInfo sceneInfo;
-	cl_float3 *image;
-	cl_int *voxels;
+	CLProgram program;
+	CLImage image;
+	Scene scene;
 	Camera camera;
 } Renderer;
+
+typedef struct Image {
+	int width;
+	int height;
+	unsigned char *data;
+} Image;
+
+typedef struct Material {
+	cl_int type;
+	cl_float3 color;
+	cl_float tint;
+	cl_float fuzzyness;
+	cl_float refIdx;
+} Material;
 
 Renderer *create_renderer();
 
 void set_image_properties(
 	Renderer *renderer,
-	int width, int height,
-	int maxRayDepth
+	int width, int height
 );
 
 void set_background_color(

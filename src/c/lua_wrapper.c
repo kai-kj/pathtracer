@@ -82,9 +82,8 @@ int l_set_image_properties(lua_State *l) {
 	Renderer *renderer = lua_touserdata(l, 1);
 	int width = luaL_checkinteger(l, 2);
 	int height = luaL_checkinteger(l, 3);
-	int maxRayDepth = luaL_checkinteger(l, 4);
 
-	set_image_properties(renderer, width, height, maxRayDepth);
+	set_image_properties(renderer, width, height);
 
 	return 0;
 }

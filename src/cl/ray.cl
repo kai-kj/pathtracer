@@ -3,16 +3,6 @@ typedef struct Ray {
 	float3 direction;
 } Ray;
 
-typedef struct ImageInfo {
-	int2 size;
-	int maxRayDepth;
-} ImageInfo;
-
-typedef struct SceneInfo {
-	float3 color;
-	int3 size;
-} SceneInfo;
-
 typedef struct Material {
 	int type;
 	float3 color;
