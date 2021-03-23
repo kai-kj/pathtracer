@@ -21,3 +21,30 @@
 
 ## Better editor
 
+...
+
+# Project structure
+
+* **src**
+  * **gui**
+    * `gui.c`
+    * `gui.h`
+  * **renderer**
+    * **host**
+      * `render_manager.c`
+      * `render_manager.h`
+      * `materials.c`
+      * `materials.h`
+    * **device**
+      * `renderer.cl`
+      * `materials.cl`
+      * `math.cl`
+      * `rng.cl`
+    * `renderer.h`
+  * **renderer_device**
+  * **lua**
+    * `lua_runner.c`
+    * `lua_runner.h`
+    * `lua_wrapper.c`
+    * `lua_wrapper.h`
+  * `main.c`

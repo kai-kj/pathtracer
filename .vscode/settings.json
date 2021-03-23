@@ -1,0 +1,7 @@
+{
+	"files.associations": {
+		"device_manager.h": "c",
+		"renderer.h": "c",
+		"k_util.h": "c"
+	}
+}

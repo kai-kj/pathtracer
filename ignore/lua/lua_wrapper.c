@@ -5,7 +5,7 @@
 #include "../../include/k_util.h"
 
 #include "lua_wrapper.h"
-#include "renderer.h"
+#include "../renderer/host/renderer_manager.h"
 
 
 //---- private functions -----------------------------------------------------//

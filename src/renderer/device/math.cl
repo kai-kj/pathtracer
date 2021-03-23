@@ -3,23 +3,6 @@ typedef struct Ray {
 	float3 direction;
 } Ray;
 
-typedef struct Material {
-	int type;
-	float3 color;
-	float tint;
-	float fuzzyness;
-	float refIdx;
-} Material;
-
-typedef struct Camera {
-	float3 pos;
-	float3 rot;
-	float sensorWidth;
-	float focalLength;
-	float aperture;
-	float exposure;
-} Camera;
-
 float3 rotate_vector(float3 vec, float3 rot) {
 	float3 nVec;
 	

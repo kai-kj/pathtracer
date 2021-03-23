@@ -21,6 +21,7 @@ double get_time();
 int sec_to_min(int seconds);
 int sec_to_h(int seconds);
 char *read_file(char *fileName);
+static char *get_file_ext(char *filename);
 void msg(char *format, ...);
 
 //----------------------------------------------------------------------------//
@@ -32,6 +33,7 @@ void msg(char *format, ...);
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <sys/time.h>
 
 //---- private functions -----------------------------------------------------//
@@ -53,20 +55,6 @@ int sec_to_min(int seconds) {
 int sec_to_h(int seconds) {
 	return sec_to_min(seconds) / 60;
 }
-
-/*
-char *read_file(char *fileName) {
-	FILE *fp;
-	char *buffer;
- 
-	fp = fopen(fileName, "rb");
-	buffer = malloc(0x100000);
-	fread(buffer, 1, 0x100000, fp);
-	fclose(fp);
-
-	return buffer;
-}
-*/
 
 char *read_file(char *fileName) {
 	char *source = NULL;
@@ -92,6 +80,14 @@ char *read_file(char *fileName) {
 	return source;
 }
 
+static char *get_file_ext(char *filename) {
+	char *dot = strrchr(filename, '.');
+
+	if(!dot || dot == filename)
+		return "";
+	
+	return dot + 1;
+}
 
 void msg(char *format, ...) {
 	va_list args;
