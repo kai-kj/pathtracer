@@ -1,9 +1,6 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
-#include <CL/cl.h>
-
-#include "material_structs.h"
 #include "renderer_structs.h"
 
 Material create_lambertian_material(
@@ -27,7 +24,11 @@ Material create_light_source_material(
 	float r, float g, float b
 );
 
-int add_material(
+void reset_materials(
+	Renderer *renderer
+);
+
+MaterialID add_material(
 	Renderer *renderer, Material material
 );
 

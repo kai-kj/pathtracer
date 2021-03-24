@@ -27,24 +27,19 @@
 
 * **src**
   * **gui**
-    * `gui.c`
-    * `gui.h`
+    * `gui.c` / `gui.h`
   * **renderer**
-    * **host**
-      * `render_manager.c`
-      * `render_manager.h`
-      * `materials.c`
-      * `materials.h`
-    * **device**
-      * `renderer.cl`
+    * **kernel**
+      * `main.cl`
       * `materials.cl`
       * `math.cl`
       * `rng.cl`
     * `renderer.h`
-  * **renderer_device**
+    * `kernel_manger.c` / `kernel_manager.h`
+    * `scene_manger.c` / `scene_manager.h`
+    * `material_manger.c` / `material_manager.h`
+    * `camera_manger.c` / `camera_manager.h`
   * **lua**
-    * `lua_runner.c`
-    * `lua_runner.h`
-    * `lua_wrapper.c`
-    * `lua_wrapper.h`
+    * `lua_runner.c` / `lua_runner.h`
+    * `lua_wrapper.c` / `lua_wrapper.h`
   * `main.c`

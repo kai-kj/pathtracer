@@ -1,13 +1,14 @@
-#include <math.h>
 #include <string.h>
+#include <math.h>
+#include <time.h>
 
-#include "../../../include/k_util.h"
+#include "../../include/k_util.h"
 
-#include "device_manager.h"
+#include "kernel.h"
 
-#define FILE_NAME "src/renderer/device/renderer.cl"
+#define FILE_NAME "src/renderer/kernel/main.cl"
 #define KERNEL_NAME "main"
-#define PROGRAM_ARGS "-I src/renderer/device" // -cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math
+#define PROGRAM_ARGS "-cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math"
 
 //---- private functions -----------------------------------------------------//
 
@@ -88,7 +89,7 @@ static void print_kernel_run_error(cl_int ret) {
 	}
 }
 
-void gamma_correct_CLImage(CLImage image) {
+static void gamma_correct_CLImage(CLImage image) {
 	int pixelCount = image.size.x * image.size.y;
 
 	for(int i = 0; i < pixelCount; i++) {
@@ -122,93 +123,125 @@ static Image *CLImage_to_Image(CLImage clImage) {
 	return image;
 }
 
-//---- public functions ------------------------------------------------------//
+//---- public ----------------------------------------------------------------//
 
-void create_kernel(Renderer *renderer) {
-	// get platforms
+Renderer *create_renderer() {
+	srand(time(NULL));
+
+	Renderer *renderer = malloc(sizeof(Renderer));
+
+	renderer->scene = (Scene){
+		{.x = 0, .y = 0, .z = 0},
+		NULL,
+		0,
+		NULL,
+		{.x = 0, .y = 0, .z = 0}
+	};
+
 	cl_uint platformNum;
 	clGetPlatformIDs(1, &renderer->clProgram.platform, &platformNum);
-
-	// get devices
 	cl_uint deviceNum;
 	clGetDeviceIDs(renderer->clProgram.platform, CL_DEVICE_TYPE_GPU, 2, &renderer->clProgram.device, &deviceNum);
 
-	// create context and command queue
 	renderer->clProgram.context = clCreateContext(0, 1, &renderer->clProgram.device, NULL, NULL, NULL);
 	renderer->clProgram.queue = clCreateCommandQueueWithProperties(renderer->clProgram.context, renderer->clProgram.device, 0, NULL);
 
-	// load program
-	const char *source = read_file(FILE_NAME);
+	char *source = read_file(FILE_NAME);
 
 	if(source == NULL) {
 		print_source_read_error();
 		exit(1);
 	}
 
-	renderer->clProgram.program = clCreateProgramWithSource(renderer->clProgram.context, 1, &source, NULL, NULL);
-	free((void *)source);
+	renderer->clProgram.program = clCreateProgramWithSource(renderer->clProgram.context, 1, (const char**)&source, NULL, NULL);
 
-	// build program
+	free(source);
+
 	if(clBuildProgram(renderer->clProgram.program, 0, NULL, PROGRAM_ARGS, NULL, NULL) != CL_SUCCESS) {
 		print_program_build_error(renderer->clProgram.device, renderer->clProgram.program);
 		exit(1);
 	}
 
-	// create kernel object
 	renderer->clProgram.kernel = clCreateKernel(renderer->clProgram.program, KERNEL_NAME, NULL);
+
+	return renderer;
 }
 
-void setup_kernel_args(Renderer *renderer) {
-	// create buffer for voxels
-	int voxelCount = renderer->scene.size.x * renderer->scene.size.y * renderer->scene.size.z;
-	renderer->clProgram.voxelBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(cl_int) * voxelCount, NULL, NULL);
-	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.voxelBuff, CL_TRUE, 0, sizeof(cl_int) * voxelCount, renderer->scene.voxels, 0, NULL, NULL);
+void set_image_properties(Renderer *renderer, int width, int height) {
+	clReleaseMemObject(renderer->clProgram.imageBuff);
 
-	// create buffer for materials
-	renderer->clProgram.materialBuff =  clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(Material) * renderer->scene.materialCount, NULL, NULL);
-	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.materialBuff, CL_TRUE, 0, sizeof(Material) * renderer->scene.materialCount, renderer->scene.materials, 0, NULL, NULL);
-
-	// set kernel arguments
-	clSetKernelArg(renderer->clProgram.kernel, 0, sizeof(cl_mem), &renderer->clProgram.imageBuff);
-	clSetKernelArg(renderer->clProgram.kernel, 1, sizeof(cl_int2), &renderer->image.size);
-	clSetKernelArg(renderer->clProgram.kernel, 2, sizeof(cl_mem), &renderer->clProgram.voxelBuff);
-	clSetKernelArg(renderer->clProgram.kernel, 3, sizeof(cl_int3), &renderer->scene.size);
-	clSetKernelArg(renderer->clProgram.kernel, 4, sizeof(cl_mem), &renderer->clProgram.materialBuff);
-	clSetKernelArg(renderer->clProgram.kernel, 5, sizeof(cl_int), &renderer->scene.materialCount);
-	clSetKernelArg(renderer->clProgram.kernel, 6, sizeof(cl_float3), &renderer->scene.bgColor);
-	clSetKernelArg(renderer->clProgram.kernel, 7, sizeof(Camera), &renderer->camera);
+	renderer->clImage.size = (cl_int2){.x = width, .y = height};
+	renderer->clImage.data = malloc(sizeof(cl_float3) * width * height);
+	renderer->clProgram.imageBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_WRITE, sizeof(cl_float3) * width * height, NULL, NULL);
 }
 
-void run_kernel(Renderer *renderer, int samples) {
-	size_t pixelCount = renderer->image.size.x * renderer->image.size.y;
+void render_sample(Renderer *renderer, int sampleNumber, int verbose) {
+	cl_ulong seed = rand();
+
+	// non-constant arguments
+	clSetKernelArg(renderer->clProgram.kernel, 7, sizeof(cl_int), &sampleNumber);
+	clSetKernelArg(renderer->clProgram.kernel, 8, sizeof(cl_ulong), &seed);
+
+	size_t pixelCount = renderer->clImage.size.x * renderer->clImage.size.y;
 
 	cl_int ret = clEnqueueNDRangeKernel(renderer->clProgram.queue, renderer->clProgram.kernel, 1, NULL, &pixelCount, NULL, 0, NULL, NULL);
 
 	if(ret != CL_SUCCESS) {
 		print_kernel_run_error(ret);
-		release_kernel(renderer);
+		destroy_renderer(renderer);
 		exit(1);
 	}
-
-	clFinish(renderer->clProgram.queue);
-
-	// read image
-	clEnqueueReadBuffer(renderer->clProgram.queue, renderer->clProgram.imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, renderer->image.data, 0, NULL, NULL);
-	clFinish(renderer->clProgram.queue);
 }
 
-Image *get_image(Renderer *renderer) {
-	gamma_correct_CLImage(renderer->image);
+Image *render_image(Renderer *renderer, int samples, int verbose) {
+	int voxelCount = renderer->scene.size.x * renderer->scene.size.y * renderer->scene.size.z;
 
-	// create image
-	Image *image = CLImage_to_Image(renderer->image);
+	renderer->clProgram.voxelBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(cl_int) * voxelCount, NULL, NULL);
+	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.voxelBuff, CL_TRUE, 0, sizeof(cl_int) * voxelCount, renderer->scene.voxels, 0, NULL, NULL);
+
+	renderer->clProgram.materialBuff =  clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(Material) * renderer->scene.materialCount, NULL, NULL);
+	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.materialBuff, CL_TRUE, 0, sizeof(Material) * renderer->scene.materialCount, renderer->scene.materials, 0, NULL, NULL);
+
+	// constant arguments
+	clSetKernelArg(renderer->clProgram.kernel, 0, sizeof(cl_mem), &renderer->clProgram.imageBuff);
+	clSetKernelArg(renderer->clProgram.kernel, 1, sizeof(cl_int2), &renderer->clImage.size);
+	clSetKernelArg(renderer->clProgram.kernel, 2, sizeof(cl_mem), &renderer->clProgram.voxelBuff);
+	clSetKernelArg(renderer->clProgram.kernel, 3, sizeof(cl_int3), &renderer->scene.size);
+	clSetKernelArg(renderer->clProgram.kernel, 4, sizeof(cl_mem), &renderer->clProgram.materialBuff);
+	clSetKernelArg(renderer->clProgram.kernel, 5, sizeof(cl_float3), &renderer->scene.bgColor);
+	clSetKernelArg(renderer->clProgram.kernel, 6, sizeof(Camera), &renderer->camera);
+
+	for(int i = 0; i < samples; i++) {
+		render_sample(renderer, i, verbose);
+	}
+	
+	clFinish(renderer->clProgram.queue);
+
+	clReleaseMemObject(renderer->clProgram.voxelBuff);
+	clReleaseMemObject(renderer->clProgram.materialBuff);
+
+	size_t pixelCount = renderer->clImage.size.x * renderer->clImage.size.y;
+
+	clEnqueueReadBuffer(renderer->clProgram.queue, renderer->clProgram.imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, renderer->clImage.data, 0, NULL, NULL);
+	clFinish(renderer->clProgram.queue);
+
+	gamma_correct_CLImage(renderer->clImage);
+
+	Image *image = CLImage_to_Image(renderer->clImage);
 
 	return image;
 }
 
-void release_kernel(Renderer *renderer) {
+void render_to_file(Renderer *renderer, int samples, char *fileName, int verbose) {
+	Image *image = render_image(renderer, samples, verbose);
+
+	write_image(image, fileName);
+	
+	destroy_image(image);
+}
+
+void destroy_renderer(Renderer *renderer) {
 	clReleaseMemObject(renderer->clProgram.imageBuff);
-	clReleaseMemObject(renderer->clProgram.voxelBuff);
 	clReleaseProgram(renderer->clProgram.program);
 	clReleaseKernel(renderer->clProgram.kernel);
 	clReleaseCommandQueue(renderer->clProgram.queue);
