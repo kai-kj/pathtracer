@@ -119,13 +119,9 @@ Material get_material(Renderer *r, MaterialID id) {
 	return r->materials[id - 1];
 }
 
-int cast_ray(Renderer *r, Ray ray, float3 *hitPos, float3 *normal, Material *material) {
-	int3 pos = {
-		(int)floor(ray.origin.x),
-		(int)floor(ray.origin.y),
-		(int)floor(ray.origin.z)
-	};
-
+int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Material *material) {
+	// *voxel = convert_int3(ray.origin);
+	
 	int3 step = {
 		(ray.direction.x >= 0) ? 1 : -1,
 		(ray.direction.y >= 0) ? 1 : -1,
@@ -133,12 +129,11 @@ int cast_ray(Renderer *r, Ray ray, float3 *hitPos, float3 *normal, Material *mat
 	};
 
 	float3 tMax = {
-		(ray.direction.x != 0) ? (pos.x + step.x - ray.origin.x) / ray.direction.x : MAXFLOAT,
-		(ray.direction.y != 0) ? (pos.y + step.y - ray.origin.y) / ray.direction.y : MAXFLOAT,
-		(ray.direction.z != 0) ? (pos.z + step.z - ray.origin.z) / ray.direction.z : MAXFLOAT
+		(ray.direction.x != 0) ? (voxel->x + step.x - ray.origin.x) / ray.direction.x : MAXFLOAT,
+		(ray.direction.y != 0) ? (voxel->y + step.y - ray.origin.y) / ray.direction.y : MAXFLOAT,
+		(ray.direction.z != 0) ? (voxel->z + step.z - ray.origin.z) / ray.direction.z : MAXFLOAT
 	};
 	
-
 	float3 tDelta = {
 		(ray.direction.x != 0) ? 1 / ray.direction.x * step.x : MAXFLOAT,
 		(ray.direction.y != 0) ? 1 / ray.direction.y * step.y : MAXFLOAT,
@@ -150,55 +145,64 @@ int cast_ray(Renderer *r, Ray ray, float3 *hitPos, float3 *normal, Material *mat
 	while(1) {
 		if(tMax.x < tMax.y) {
 			if(tMax.x < tMax.z) {
-				pos.x += step.x;
+				voxel->x += step.x;
 				tMax.x += tDelta.x;
-				side = 1;
+				side = 0;
 			} else {
-				pos.z += step.z;
+				voxel->z += step.z;
 				tMax.z += tDelta.z;
-				side = 3;
+				side = 2;
 			}
 		} else {
 			if(tMax.y < tMax.z) {
-				pos.y += step.y;
+				voxel->y += step.y;
 				tMax.y += tDelta.y;
-				side = 2;
+				side = 1;
 			} else {
-				pos.z += step.z;
+				voxel->z += step.z;
 				tMax.z += tDelta.z;
-				side = 3;
+				side = 2;
 			}
 		}
 
-		if(out_of_scene(r, pos)) {
+		if(out_of_scene(r, *voxel))
 			return 0;
-		}
 
-		MaterialID id = get_material_ID(r, pos);
+		MaterialID id = get_material_ID(r, *voxel);
 
 		if(id == 0)
 			continue;
 
 		*material = get_material(r, id);
 
-		if(side == 1) {
-			hitPos->x = (float)pos.x;
-			hitPos->y = ray.origin.y + (hitPos->x - ray.origin.x) * ray.direction.y / ray.direction.x;
-			hitPos->z = ray.origin.z + (hitPos->x - ray.origin.x) * ray.direction.z / ray.direction.x;
+		switch(side) {
+			case 0:
+				hitPos->x = (float)voxel->x;
+				hitPos->y = ray.origin.y + (hitPos->x - ray.origin.x) * ray.direction.y / ray.direction.x;
+				hitPos->z = ray.origin.z + (hitPos->x - ray.origin.x) * ray.direction.z / ray.direction.x;
 
-			*normal = (float3){-step.x, 0, 0};
-		} else if(side == 2) {
-			hitPos->y = (float)pos.y;
-			hitPos->x = ray.origin.x + (hitPos->y - ray.origin.y) * ray.direction.x / ray.direction.y;
-			hitPos->z = ray.origin.z + (hitPos->y - ray.origin.y) * ray.direction.z / ray.direction.y;
+				*normal = (int3){-step.x, 0, 0};
 
-			*normal = (float3){0, -step.y, 0};
-		} else if(side == 3) {
-			hitPos->z = (float)pos.z;
-			hitPos->y = ray.origin.y + (hitPos->z - ray.origin.z) * ray.direction.y / ray.direction.z;
-			hitPos->x = ray.origin.x + (hitPos->z - ray.origin.z) * ray.direction.x / ray.direction.z;
+				break;
+			
+			case 1:
+				hitPos->y = (float)voxel->y;
+				hitPos->x = ray.origin.x + (hitPos->y - ray.origin.y) * ray.direction.x / ray.direction.y;
+				hitPos->z = ray.origin.z + (hitPos->y - ray.origin.y) * ray.direction.z / ray.direction.y;
 
-			*normal = (float3){0, 0, -step.z};
+				*normal = (int3){0, -step.y, 0};
+
+				break;
+			
+			case 2:
+				hitPos->z = (float)voxel->z;
+				hitPos->y = ray.origin.y + (hitPos->z - ray.origin.z) * ray.direction.y / ray.direction.z;
+				hitPos->x = ray.origin.x + (hitPos->z - ray.origin.z) * ray.direction.x / ray.direction.z;
+
+				*normal = (int3){0, 0, -step.z};
+
+				break;
+
 		}
 
 		return 1;
@@ -207,52 +211,70 @@ int cast_ray(Renderer *r, Ray ray, float3 *hitPos, float3 *normal, Material *mat
 }
 
 float3 get_color(Renderer *r, Ray ray) {
-
-	// TODO: implement ambient color? (initial color value)
-	float3 color = 0;
 	float3 mask = 1;
-	
-	// TODO: implement maxDepth
-	for(int i = 0; i < 10000; i++) {
-		Material material;
-		float3 normal;
+	float3 color = 0;
+
+	int3 voxel = convert_int3(ray.origin);
+
+	// TODO: maxDepth
+	// TODO: russian rulette
+
+	int maxDepth = 1000;
+
+	for(int i = 0; i < maxDepth; i++) {
+		// TODO: start with ray-box intersection check
+
 		float3 hitPos;
+		int3 iNormal;
+		Material material;
 
-		if(cast_ray(r, ray, &hitPos, &normal, &material)) {
-			//return (float3){normal.x / 2 + 0.5, normal.y / 2 + 0.5, normal.z / 2 + 0.5};
-			//return material.color;
+		if(cast_ray(r, ray, &voxel, &hitPos, &iNormal, &material)) {
+			float3 fNormal = convert_float3(iNormal);
+			
+			// TODO: better rendering
+			// TODO: dielectric material
 
-			if(material.type == 0) {
+			if(material.type == 1) {
 				color = mask * material.color;
 				break;
 
-			} else if(material.type == 1) {
-				float3 direction = normal + random_unit_vector(r->rng);
+			} else if(material.type == 2) {
+				float3 direction = fNormal + random_unit_vector(r->rng);
 				ray = (Ray){hitPos, direction};
 				mask *= material.color;
-
-			} else if(material.type == 2) {
-				float3 direction = reflection_dir(ray.direction, normal) + random_unit_vector(r->rng) * material.fuzzyness;
+			
+			} else if(material.type == 3) {
+				float3 direction = reflection_dir(ray.direction, fNormal) + random_unit_vector(r->rng) * material.fuzzyness;
 				ray = (Ray){hitPos, direction};
 				mask = mask * (1 - material.tint) + mask * material.color * material.tint;
+
 			}
 
-			// TODO: dielectric material
+			voxel = convert_int3(ray.origin);
+			// ray.origin += fNormal * 0.001f;
 
 		} else {
 			color = mask * r->bgColor;
 			break;
+		
 		}
 
 	}
 
 	return color;
-
 }
 
 //---- main ------------------------------------------------------------------//
 
-kernel void main(global float3 *image, int2 imageSize, global int *voxels, int3 sceneSize, global Material *materials, float3 bgColor, Camera camera, int sampleNumber, ulong seed) {
+kernel void main(
+	global float3 *image, int2 imageSize,
+	global int *voxels, int3 sceneSize,
+	global Material *materials,
+	float3 bgColor,
+	Camera camera,
+	int sampleNumber,
+	ulong seed
+) {
 	int id = get_global_id(0);
 	ulong rng = init_rng_2(id, seed);
 
