@@ -119,8 +119,8 @@ Material get_material(Renderer *r, MaterialID id) {
 	return r->materials[id - 1];
 }
 
-int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Material *material) {
-	// *voxel = convert_int3(ray.origin);
+int cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *material) {
+	int3 voxel = convert_int3(ray.origin);
 	
 	int3 step = {
 		(ray.direction.x >= 0) ? 1 : -1,
@@ -129,9 +129,9 @@ int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Ma
 	};
 
 	float3 tMax = {
-		(ray.direction.x != 0) ? (voxel->x + step.x - ray.origin.x) / ray.direction.x : MAXFLOAT,
-		(ray.direction.y != 0) ? (voxel->y + step.y - ray.origin.y) / ray.direction.y : MAXFLOAT,
-		(ray.direction.z != 0) ? (voxel->z + step.z - ray.origin.z) / ray.direction.z : MAXFLOAT
+		(ray.direction.x != 0) ? (voxel.x + step.x - ray.origin.x) / ray.direction.x : MAXFLOAT,
+		(ray.direction.y != 0) ? (voxel.y + step.y - ray.origin.y) / ray.direction.y : MAXFLOAT,
+		(ray.direction.z != 0) ? (voxel.z + step.z - ray.origin.z) / ray.direction.z : MAXFLOAT
 	};
 	
 	float3 tDelta = {
@@ -145,30 +145,30 @@ int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Ma
 	while(1) {
 		if(tMax.x < tMax.y) {
 			if(tMax.x < tMax.z) {
-				voxel->x += step.x;
+				voxel.x += step.x;
 				tMax.x += tDelta.x;
 				side = 0;
 			} else {
-				voxel->z += step.z;
+				voxel.z += step.z;
 				tMax.z += tDelta.z;
 				side = 2;
 			}
 		} else {
 			if(tMax.y < tMax.z) {
-				voxel->y += step.y;
+				voxel.y += step.y;
 				tMax.y += tDelta.y;
 				side = 1;
 			} else {
-				voxel->z += step.z;
+				voxel.z += step.z;
 				tMax.z += tDelta.z;
 				side = 2;
 			}
 		}
 
-		if(out_of_scene(r, *voxel))
+		if(out_of_scene(r, voxel))
 			return 0;
 
-		MaterialID id = get_material_ID(r, *voxel);
+		MaterialID id = get_material_ID(r, voxel);
 
 		if(id == 0)
 			continue;
@@ -177,7 +177,7 @@ int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Ma
 
 		switch(side) {
 			case 0:
-				hitPos->x = (float)voxel->x;
+				hitPos->x = (float)voxel.x;
 				hitPos->y = ray.origin.y + (hitPos->x - ray.origin.x) * ray.direction.y / ray.direction.x;
 				hitPos->z = ray.origin.z + (hitPos->x - ray.origin.x) * ray.direction.z / ray.direction.x;
 
@@ -186,7 +186,7 @@ int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Ma
 				break;
 			
 			case 1:
-				hitPos->y = (float)voxel->y;
+				hitPos->y = (float)voxel.y;
 				hitPos->x = ray.origin.x + (hitPos->y - ray.origin.y) * ray.direction.x / ray.direction.y;
 				hitPos->z = ray.origin.z + (hitPos->y - ray.origin.y) * ray.direction.z / ray.direction.y;
 
@@ -195,7 +195,7 @@ int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Ma
 				break;
 			
 			case 2:
-				hitPos->z = (float)voxel->z;
+				hitPos->z = (float)voxel.z;
 				hitPos->y = ray.origin.y + (hitPos->z - ray.origin.z) * ray.direction.y / ray.direction.z;
 				hitPos->x = ray.origin.x + (hitPos->z - ray.origin.z) * ray.direction.x / ray.direction.z;
 
@@ -214,8 +214,6 @@ float3 get_color(Renderer *r, Ray ray) {
 	float3 mask = 1;
 	float3 color = 0;
 
-	int3 voxel = convert_int3(ray.origin);
-
 	// TODO: maxDepth
 	// TODO: russian rulette
 
@@ -228,10 +226,9 @@ float3 get_color(Renderer *r, Ray ray) {
 		int3 iNormal;
 		Material material;
 
-		if(cast_ray(r, ray, &voxel, &hitPos, &iNormal, &material)) {
+		if(cast_ray(r, ray, &hitPos, &iNormal, &material)) {
 			float3 fNormal = convert_float3(iNormal);
 			
-			// TODO: better rendering
 			// TODO: dielectric material
 
 			if(material.type == 1) {
@@ -249,9 +246,6 @@ float3 get_color(Renderer *r, Ray ray) {
 				mask = mask * (1 - material.tint) + mask * material.color * material.tint;
 
 			}
-
-			voxel = convert_int3(ray.origin);
-			// ray.origin += fNormal * 0.001f;
 
 		} else {
 			color = mask * r->bgColor;
