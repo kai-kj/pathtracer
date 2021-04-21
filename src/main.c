@@ -45,7 +45,7 @@ int main(void) {
 	MaterialID green = add_material(r, create_lambertian_material(0, 1, 0));
 	MaterialID blue = add_material(r, create_lambertian_material(0, 0, 1));
 	MaterialID mirror = add_material(r, create_metal_material(0, 0, 0, 0.5, 0));
-	MaterialID light = add_material(r, create_light_source_material(10, 10, 8, 1));
+	MaterialID light = add_material(r, create_light_source_material(10, 10, 8));
 
 	// side walls
 	for(int y = 0; y <= width; ++y) {

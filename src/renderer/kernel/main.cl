@@ -2,39 +2,12 @@
 
 typedef uint MaterialID;
 
-// typedef struct Material {
-// 	int type;
-// 	float3 color;
-// 	float tint;
-// 	float fuzz;
-// 	float refIdx;
-// } Material;
-
-typedef union Material {
+typedef struct Material {
 	int type;
-
-	struct {
-		float3 color;
-		float brightness;
-	} lightSource;
-
-	// TODO: attenuation
-	struct {
-		float3 color;
-	} lambertian;
-
-	struct {
-		float3 color;
-		float tint;
-		float fuzz;
-	} metal;
-
-	struct {
-		float3 color;
-		float tint;
-		float fuzz;
-		float refIdx;
-	} dielectric;
+	float3 color;
+	float tint;
+	float fuzzyness;
+	float refIdx;
 } Material;
 
 typedef struct Ray {
@@ -260,18 +233,19 @@ float3 get_color(Renderer *r, Ray ray) {
 			
 			// TODO: dielectric material
 			if(material.type == 1) {
-				color = mask * material.lightSource.color * material.lightSource.brightness;
+
+				color = mask * material.color;
 				break;
 
 			} else if(material.type == 2) {
 				float3 direction = fNormal + random_unit_vector(r->rng);
 				ray = (Ray){hitPos, direction};
-				mask *= material.lambertian.color;
+				mask *= material.color;
 			
 			} else if(material.type == 3) {
-				float3 direction = reflection_dir(ray.direction, fNormal) + random_unit_vector(r->rng) * material.metal.fuzz;
+				float3 direction = reflection_dir(ray.direction, fNormal) + random_unit_vector(r->rng) * material.fuzzyness;
 				ray = (Ray){hitPos, direction};
-				mask = mask * (1 - material.metal.tint) + mask * material.metal.color * material.metal.tint;
+				mask = mask * (1 - material.tint) + mask * material.color * material.tint;
 
 			}
 
@@ -284,7 +258,7 @@ float3 get_color(Renderer *r, Ray ray) {
 		voxel += iNormal;
 
 		// if(i == 1)
-		// 	return material.metal.color;
+			// return material.color;
 
 	}
 
