@@ -2,12 +2,39 @@
 
 typedef uint MaterialID;
 
-typedef struct Material {
+// typedef struct Material {
+// 	int type;
+// 	float3 color;
+// 	float tint;
+// 	float fuzz;
+// 	float refIdx;
+// } Material;
+
+typedef union Material {
 	int type;
-	float3 color;
-	float tint;
-	float fuzzyness;
-	float refIdx;
+
+	struct {
+		float3 color;
+		float brightness;
+	} lightSource;
+
+	// TODO: attenuation
+	struct {
+		float3 color;
+	} lambertian;
+
+	struct {
+		float3 color;
+		float tint;
+		float fuzz;
+	} metal;
+
+	struct {
+		float3 color;
+		float tint;
+		float fuzz;
+		float refIdx;
+	} dielectric;
 } Material;
 
 typedef struct Ray {
@@ -89,20 +116,21 @@ float3 refraction_dir(float3 in, float3 normal, float relativeRefIdx) {
 	return outParallel + outPerpendicular;
 }
 
+// TODO: fix this
 float3 random_unit_vector(ulong *rng) {
 	float3 r;
 
-	float cosTheta = rand_float_in_range(-1, 1, rng);
-	float cosPhi = rand_float_in_range(-1, 1, rng);
+	float theta = rand_float_in_range(0, 2 * M_PI, rng);
+	float z = rand_float_in_range(-1, 1, rng);
+	float sqrtZ = sqrt(1 - z * z);
 
-	float sinTheta = sqrt(1 - cosTheta * cosTheta);
-	float sinPhi = sqrt(1 - cosPhi * cosPhi);
-
-	r.x = sinTheta * cosPhi;
-	r.y = sinTheta * sinPhi;
-	r.z = cosTheta;
+	r.x = sqrtZ * cos(theta);
+	r.y = sqrtZ * sin(theta);
+	r.z = z;
 
 	return r;
+
+	// return normalize((float3){rand_float_in_range(-1, 1, rng), rand_float_in_range(-1, 1, rng), rand_float_in_range(-1, 1, rng)});
 }
 
 //---- ray -------------------------------------------------------------------//
@@ -116,12 +144,11 @@ MaterialID get_material_ID(Renderer *r, int3 pos) {
 }
 
 Material get_material(Renderer *r, MaterialID id) {
-	return r->materials[id - 1];
+	return r->materials[id];
 }
 
-int cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *material) {
-	int3 voxel = convert_int3(ray.origin);
-	
+int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Material *material) {
+
 	int3 step = {
 		(ray.direction.x >= 0) ? 1 : -1,
 		(ray.direction.y >= 0) ? 1 : -1,
@@ -129,9 +156,9 @@ int cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *mater
 	};
 
 	float3 tMax = {
-		(ray.direction.x != 0) ? (voxel.x + step.x - ray.origin.x) / ray.direction.x : MAXFLOAT,
-		(ray.direction.y != 0) ? (voxel.y + step.y - ray.origin.y) / ray.direction.y : MAXFLOAT,
-		(ray.direction.z != 0) ? (voxel.z + step.z - ray.origin.z) / ray.direction.z : MAXFLOAT
+		(ray.direction.x != 0) ? (voxel->x + step.x - ray.origin.x) / ray.direction.x : MAXFLOAT,
+		(ray.direction.y != 0) ? (voxel->y + step.y - ray.origin.y) / ray.direction.y : MAXFLOAT,
+		(ray.direction.z != 0) ? (voxel->z + step.z - ray.origin.z) / ray.direction.z : MAXFLOAT
 	};
 	
 	float3 tDelta = {
@@ -145,67 +172,67 @@ int cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *mater
 	while(1) {
 		if(tMax.x < tMax.y) {
 			if(tMax.x < tMax.z) {
-				voxel.x += step.x;
+				voxel->x += step.x;
 				tMax.x += tDelta.x;
 				side = 0;
 			} else {
-				voxel.z += step.z;
+				voxel->z += step.z;
 				tMax.z += tDelta.z;
 				side = 2;
 			}
 		} else {
 			if(tMax.y < tMax.z) {
-				voxel.y += step.y;
+				voxel->y += step.y;
 				tMax.y += tDelta.y;
 				side = 1;
 			} else {
-				voxel.z += step.z;
+				voxel->z += step.z;
 				tMax.z += tDelta.z;
 				side = 2;
 			}
 		}
 
-		if(out_of_scene(r, voxel))
+		if(out_of_scene(r, *voxel))
 			return 0;
 
-		MaterialID id = get_material_ID(r, voxel);
+		MaterialID id = get_material_ID(r, *voxel);
 
-		if(id == 0)
-			continue;
+		if(id != -1) {
+			*material = get_material(r, id);
 
-		*material = get_material(r, id);
+			switch(side) {
+				case 0:
+					hitPos->x = (float)voxel->x;
+					hitPos->y = ray.origin.y + (hitPos->x - ray.origin.x) * ray.direction.y / ray.direction.x;
+					hitPos->z = ray.origin.z + (hitPos->x - ray.origin.x) * ray.direction.z / ray.direction.x;
 
-		switch(side) {
-			case 0:
-				hitPos->x = (float)voxel.x;
-				hitPos->y = ray.origin.y + (hitPos->x - ray.origin.x) * ray.direction.y / ray.direction.x;
-				hitPos->z = ray.origin.z + (hitPos->x - ray.origin.x) * ray.direction.z / ray.direction.x;
+					*normal = (int3){-step.x, 0, 0};
 
-				*normal = (int3){-step.x, 0, 0};
+					break;
+				
+				case 1:
+					hitPos->y = (float)voxel->y;
+					hitPos->x = ray.origin.x + (hitPos->y - ray.origin.y) * ray.direction.x / ray.direction.y;
+					hitPos->z = ray.origin.z + (hitPos->y - ray.origin.y) * ray.direction.z / ray.direction.y;
 
-				break;
-			
-			case 1:
-				hitPos->y = (float)voxel.y;
-				hitPos->x = ray.origin.x + (hitPos->y - ray.origin.y) * ray.direction.x / ray.direction.y;
-				hitPos->z = ray.origin.z + (hitPos->y - ray.origin.y) * ray.direction.z / ray.direction.y;
+					*normal = (int3){0, -step.y, 0};
 
-				*normal = (int3){0, -step.y, 0};
+					break;
+				
+				case 2:
+					hitPos->z = (float)voxel->z;
+					hitPos->y = ray.origin.y + (hitPos->z - ray.origin.z) * ray.direction.y / ray.direction.z;
+					hitPos->x = ray.origin.x + (hitPos->z - ray.origin.z) * ray.direction.x / ray.direction.z;
 
-				break;
-			
-			case 2:
-				hitPos->z = (float)voxel.z;
-				hitPos->y = ray.origin.y + (hitPos->z - ray.origin.z) * ray.direction.y / ray.direction.z;
-				hitPos->x = ray.origin.x + (hitPos->z - ray.origin.z) * ray.direction.x / ray.direction.z;
+					*normal = (int3){0, 0, -step.z};
 
-				*normal = (int3){0, 0, -step.z};
+					break;
 
-				break;
+			}
+
+			return 1;
 
 		}
-
-		return 1;
 		
 	}
 }
@@ -217,7 +244,9 @@ float3 get_color(Renderer *r, Ray ray) {
 	// TODO: maxDepth
 	// TODO: russian rulette
 
-	int maxDepth = 1000;
+	int maxDepth = 100;
+
+	int3 voxel = convert_int3(ray.origin);
 
 	for(int i = 0; i < maxDepth; i++) {
 		// TODO: start with ray-box intersection check
@@ -226,24 +255,23 @@ float3 get_color(Renderer *r, Ray ray) {
 		int3 iNormal;
 		Material material;
 
-		if(cast_ray(r, ray, &hitPos, &iNormal, &material)) {
+		if(cast_ray(r, ray, &voxel, &hitPos, &iNormal, &material)) {
 			float3 fNormal = convert_float3(iNormal);
 			
 			// TODO: dielectric material
-
 			if(material.type == 1) {
-				color = mask * material.color;
+				color = mask * material.lightSource.color * material.lightSource.brightness;
 				break;
 
 			} else if(material.type == 2) {
 				float3 direction = fNormal + random_unit_vector(r->rng);
 				ray = (Ray){hitPos, direction};
-				mask *= material.color;
+				mask *= material.lambertian.color;
 			
 			} else if(material.type == 3) {
-				float3 direction = reflection_dir(ray.direction, fNormal) + random_unit_vector(r->rng) * material.fuzzyness;
+				float3 direction = reflection_dir(ray.direction, fNormal) + random_unit_vector(r->rng) * material.metal.fuzz;
 				ray = (Ray){hitPos, direction};
-				mask = mask * (1 - material.tint) + mask * material.color * material.tint;
+				mask = mask * (1 - material.metal.tint) + mask * material.metal.color * material.metal.tint;
 
 			}
 
@@ -253,6 +281,11 @@ float3 get_color(Renderer *r, Ray ray) {
 		
 		}
 
+		voxel += iNormal;
+
+		// if(i == 1)
+		// 	return material.metal.color;
+
 	}
 
 	return color;
@@ -260,7 +293,7 @@ float3 get_color(Renderer *r, Ray ray) {
 
 //---- main ------------------------------------------------------------------//
 
-kernel void main(
+kernel void renderer(
 	global float3 *image, int2 imageSize,
 	global int *voxels, int3 sceneSize,
 	global Material *materials,

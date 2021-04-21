@@ -45,7 +45,7 @@ int main(void) {
 	MaterialID green = add_material(r, create_lambertian_material(0, 1, 0));
 	MaterialID blue = add_material(r, create_lambertian_material(0, 0, 1));
 	MaterialID mirror = add_material(r, create_metal_material(0, 0, 0, 0.5, 0));
-	MaterialID light = add_material(r, create_light_source_material(10, 10, 8));
+	MaterialID light = add_material(r, create_light_source_material(10, 10, 8, 1));
 
 	// side walls
 	for(int y = 0; y <= width; ++y) {
@@ -56,11 +56,11 @@ int main(void) {
 	}
 
 	// front wall
-	// for(int x = 0; x <= width; x++) {
-	// 	for(int y = 0; y <= height; y++) {
-	// 		add_voxel(r, x, y, 0, blue);
-	// 	}
-	// }
+	for(int x = 0; x <= width; x++) {
+		for(int y = 0; y <= height; y++) {
+			add_voxel(r, x, y, 0, white);
+		}
+	}
 
 	// back wall
 	for(int x = 0; x <= width; x++) {
@@ -69,10 +69,16 @@ int main(void) {
 		}
 	}
 
-	// floor / celling
+	// celling
 	for(int x = 0; x <= width; x++) {
 		for(int z = 0; z <= depth; z++) {
 			add_voxel(r, x, 0, z, white);
+		}
+	}
+
+	// floor
+	for(int x = 0; x <= width; x++) {
+		for(int z = 0; z <= depth; z++) {
 			add_voxel(r, x, height, z, white);
 		}
 	}
@@ -92,7 +98,7 @@ int main(void) {
 	add_voxel(r, width * 0.8, height - 2, depth * 0.8, blue);
 
 	// set_camera_properties(r, size * 0.5, size * 0.4, 1, -PI / 16, 0, 0, 1, 1, 0.001, 1000);
-	set_camera_properties(r, size * 0.5, size * 0.5, 0, 0, 0, 0, 1.5, 1, 0.001, 1000);
+	set_camera_properties(r, size * 0.5, size * 0.5, 1, 0, 0, 0, 1.5, 1, 0.001, 1000);
 
 	render_to_file(r, samples, "render.png", 1);
 

@@ -22,13 +22,31 @@ typedef struct CLImage {
 
 typedef unsigned int MaterialID;
 
-// TODO: union?
-typedef struct Material {
+typedef union Material {
 	cl_int type;
-	cl_float3 color;
-	cl_float tint;
-	cl_float fuzzyness;
-	cl_float refIdx;
+
+	struct {
+		cl_float3 color;
+		cl_float brightness;
+	} lightSource;
+
+	// TODO: attenuation
+	struct {
+		cl_float3 color;
+	} lambertian;
+
+	struct {
+		cl_float3 color;
+		cl_float tint;
+		cl_float fuzz;
+	} metal;
+
+	struct {
+		cl_float3 color;
+		cl_float tint;
+		cl_float fuzz;
+		cl_float refIdx;
+	} dielectric;
 } Material;
 
 typedef struct Scene {

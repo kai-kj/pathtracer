@@ -7,7 +7,7 @@
 #include "kernel.h"
 
 #define FILE_NAME "src/renderer/kernel/main.cl"
-#define KERNEL_NAME "main"
+#define KERNEL_NAME "renderer"
 #define PROGRAM_ARGS ""
 //"-cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math"
 
