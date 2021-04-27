@@ -197,8 +197,8 @@ void render_sample(Renderer *renderer, int sampleNumber, int verbose) {
 Image *render_image(Renderer *renderer, int samples, int verbose) {
 	int voxelCount = renderer->scene.size.x * renderer->scene.size.y * renderer->scene.size.z;
 
-	renderer->clProgram.voxelBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(cl_int) * voxelCount, NULL, NULL);
-	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.voxelBuff, CL_TRUE, 0, sizeof(cl_int) * voxelCount, renderer->scene.voxels, 0, NULL, NULL);
+	renderer->clProgram.voxelBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(cl_uchar) * voxelCount, NULL, NULL);
+	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.voxelBuff, CL_TRUE, 0, sizeof(cl_uchar) * voxelCount, renderer->scene.voxels, 0, NULL, NULL);
 
 	renderer->clProgram.materialBuff =  clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(Material) * renderer->scene.materialCount, NULL, NULL);
 	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.materialBuff, CL_TRUE, 0, sizeof(Material) * renderer->scene.materialCount, renderer->scene.materials, 0, NULL, NULL);

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <CL/cl.h>
 
 #include "material.h"
@@ -55,9 +56,15 @@ void reset_materials(Renderer *renderer) {
 
 MaterialID add_material(Renderer *renderer, Material material) {
 	renderer->scene.materialCount++;
+
+	if(renderer->scene.materialCount > 255) {
+		printf("too many materials\n");
+		exit(-1);
+	}
+
 	renderer->scene.materials = realloc(renderer->scene.materials, sizeof(Material) * renderer->scene.materialCount);
 
 	renderer->scene.materials[renderer->scene.materialCount - 1] = material;
 
-	return renderer->scene.materialCount - 1;
+	return renderer->scene.materialCount;
 }

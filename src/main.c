@@ -27,9 +27,9 @@ int main(void) {
 	Renderer *r = create_renderer();
 
 	set_image_properties(r, 800, 600);
-	
+
 	int size = 10;
-	int samples = 100;
+	int samples = 50;
 
 	int width = size;
 	int height = size;
@@ -45,13 +45,13 @@ int main(void) {
 	MaterialID green = add_material(r, create_lambertian_material(0, 1, 0));
 	MaterialID blue = add_material(r, create_lambertian_material(0, 0, 1));
 	MaterialID mirror = add_material(r, create_metal_material(0, 0, 0, 0.5, 0));
-	MaterialID light = add_material(r, create_light_source_material(10, 10, 8, 1));
+	MaterialID light = add_material(r, create_light_source_material(1, 1, 0.5, 3));
 
 	// side walls
 	for(int y = 0; y <= width; ++y) {
 		for(int z = 0; z <= depth; ++z) {
 			add_voxel(r, 0, y, z, red);
-			add_voxel(r, width, y, z, green);
+			add_voxel(r, width, y, z, mirror);
 		}
 	}
 
@@ -84,18 +84,19 @@ int main(void) {
 	}
 
 	// light
-	for(int x = width * 4 / 10; x <= width * 6 / 10; x++) {
-		for(int z = depth * 4 / 10; z <= depth * 6 / 10; z++) {
-			add_voxel(r, x, 0, z, light);
-		}
-	}
+	// for(int x = width * 4 / 10; x <= width * 6 / 10; x++) {
+	// 	for(int z = depth * 4 / 10; z <= depth * 6 / 10; z++) {
+	// 		add_voxel(r, x, 0, z, light);
+	// 	}
+	// }
 
 	// objects
-	add_voxel(r, width * 0.4, height - 1, depth * 0.6, mirror);
-	add_voxel(r, width * 0.4, height - 2, depth * 0.6, mirror);
+	// add_voxel(r, width * 0.4, height - 1, depth * 0.6, mirror);
+	// add_voxel(r, width * 0.4, height - 2, depth * 0.6, mirror);
 
-	add_voxel(r, width * 0.8, height - 1, depth * 0.8, blue);
-	add_voxel(r, width * 0.8, height - 2, depth * 0.8, blue);
+	add_voxel(r, width * 0.8, height - 1, depth * 0.7, light);
+	add_voxel(r, width * 0.8, height - 2, depth * 0.7, light);
+	// add_voxel(r, width * 0.9, height - 1, depth * 0.7, light);
 
 	// set_camera_properties(r, size * 0.5, size * 0.4, 1, -PI / 16, 0, 0, 1, 1, 0.001, 1000);
 	set_camera_properties(r, size * 0.5, size * 0.5, 1, 0, 0, 0, 1.5, 1, 0.001, 1000);

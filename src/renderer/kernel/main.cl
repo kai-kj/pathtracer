@@ -1,35 +1,31 @@
 //---- structs ---------------------------------------------------------------//
 
-typedef uint MaterialID;
-
-// typedef struct Material {
-// 	int type;
-// 	float3 color;
-// 	float tint;
-// 	float fuzz;
-// 	float refIdx;
-// } Material;
+typedef int MaterialID;
 
 typedef union Material {
 	int type;
 
 	struct {
+		int _;
 		float3 color;
 		float brightness;
 	} lightSource;
 
 	// TODO: attenuation
 	struct {
+		int _;
 		float3 color;
 	} lambertian;
 
 	struct {
+		int _;
 		float3 color;
 		float tint;
 		float fuzz;
 	} metal;
 
 	struct {
+		int _;
 		float3 color;
 		float tint;
 		float fuzz;
@@ -54,7 +50,7 @@ typedef struct Camera {
 typedef struct Renderer {
 	global float3 *image;
 	int2 imageSize;
-	global int *voxels;
+	global unsigned char *voxels;
 	int3 sceneSize;
 	global Material *materials;
 	float3 bgColor;
@@ -78,7 +74,7 @@ float rand_float(ulong *rng) {
 	return *rng / 2147483647.0;
 }
 
-float rand_float_in_range(float a, float b, ulong *rng) {
+float rand_float_in_range(ulong *rng, float a, float b) {
 	return a + rand_float(rng) * (b - a);
 }
 
@@ -97,6 +93,7 @@ float3 rotate_vector(float3 vec, float3 rot) {
 	nVec.z = vec.y * sin(rot.x) + vec.z * cos(rot.x);
 
 	return nVec;
+
 }
 
 float3 reflection_dir(float3 in, float3 normal) {
@@ -116,12 +113,11 @@ float3 refraction_dir(float3 in, float3 normal, float relativeRefIdx) {
 	return outParallel + outPerpendicular;
 }
 
-// TODO: fix this
 float3 random_unit_vector(ulong *rng) {
 	float3 r;
 
-	float theta = rand_float_in_range(0, 2 * M_PI, rng);
-	float z = rand_float_in_range(-1, 1, rng);
+	float theta = rand_float_in_range(rng, 0, 2 * M_PI);
+	float z = rand_float_in_range(rng, -1, 1);
 	float sqrtZ = sqrt(1 - z * z);
 
 	r.x = sqrtZ * cos(theta);
@@ -130,7 +126,6 @@ float3 random_unit_vector(ulong *rng) {
 
 	return r;
 
-	// return normalize((float3){rand_float_in_range(-1, 1, rng), rand_float_in_range(-1, 1, rng), rand_float_in_range(-1, 1, rng)});
 }
 
 //---- ray -------------------------------------------------------------------//
@@ -144,7 +139,7 @@ MaterialID get_material_ID(Renderer *r, int3 pos) {
 }
 
 Material get_material(Renderer *r, MaterialID id) {
-	return r->materials[id];
+	return r->materials[id - 1];
 }
 
 int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Material *material) {
@@ -197,7 +192,7 @@ int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Ma
 
 		MaterialID id = get_material_ID(r, *voxel);
 
-		if(id != -1) {
+		if(id != 0) {
 			*material = get_material(r, id);
 
 			switch(side) {
@@ -238,23 +233,24 @@ int cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Ma
 }
 
 float3 get_color(Renderer *r, Ray ray) {
-	float3 mask = 1;
-	float3 color = 0;
-
 	// TODO: maxDepth
 	// TODO: russian rulette
+	// TODO: start with ray-box intersection check
 
 	int maxDepth = 100;
 
+	float3 mask = 1;
+	float3 color = 0;
+
 	int3 voxel = convert_int3(ray.origin);
 
+	int flag = 0;
+	
 	for(int i = 0; i < maxDepth; i++) {
-		// TODO: start with ray-box intersection check
-
 		float3 hitPos;
 		int3 iNormal;
 		Material material;
-
+		
 		if(cast_ray(r, ray, &voxel, &hitPos, &iNormal, &material)) {
 			float3 fNormal = convert_float3(iNormal);
 			
@@ -264,13 +260,19 @@ float3 get_color(Renderer *r, Ray ray) {
 				break;
 
 			} else if(material.type == 2) {
-				float3 direction = fNormal + random_unit_vector(r->rng);
-				ray = (Ray){hitPos, direction};
+				ray = (Ray){
+					hitPos,
+					normalize(fNormal + random_unit_vector(r->rng))
+				};
+				voxel += iNormal;
 				mask *= material.lambertian.color;
 			
 			} else if(material.type == 3) {
-				float3 direction = reflection_dir(ray.direction, fNormal) + random_unit_vector(r->rng) * material.metal.fuzz;
-				ray = (Ray){hitPos, direction};
+				ray = (Ray){
+					hitPos,
+					normalize(reflection_dir(ray.direction, fNormal) + random_unit_vector(r->rng) * material.metal.fuzz)
+				};
+				voxel += iNormal;
 				mask = mask * (1 - material.metal.tint) + mask * material.metal.color * material.metal.tint;
 
 			}
@@ -280,11 +282,6 @@ float3 get_color(Renderer *r, Ray ray) {
 			break;
 		
 		}
-
-		voxel += iNormal;
-
-		// if(i == 1)
-		// 	return material.metal.color;
 
 	}
 
@@ -334,4 +331,5 @@ kernel void renderer(
 	float3 color = get_color(&r, ray) * camera.exposure * camera.aperture;
 	
 	image[id] = (image[id] * sampleNumber + color) / (sampleNumber + 1);
+
 }
