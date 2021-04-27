@@ -7,8 +7,8 @@ Material create_light_source_material(float r, float g, float b, float brightnes
 	Material m;
 
 	m.type = 1;
-	m.lightSource.color = (cl_float3){r, g, b};
-	m.lightSource.brightness = brightness;
+	m.color = (cl_float3){r, g, b};
+	m.details.lightSource.brightness = brightness;
 	
 	return m;
 }
@@ -17,7 +17,7 @@ Material create_lambertian_material(float r, float g, float b) {
 	Material m;
 
 	m.type = 2;
-	m.lambertian.color = (cl_float3){r, g, b};
+	m.color = (cl_float3){r, g, b};
 
 	return m;
 }
@@ -26,9 +26,9 @@ Material create_metal_material(float r, float g, float b, float tint, float fuzz
 	Material m;
 
 	m.type = 3;
-	m.metal.color = (cl_float3){r, g, b};
-	m.metal.tint = tint;
-	m.metal.fuzz = fuzz;
+	m.color = (cl_float3){r, g, b};
+	m.details.metal.tint = tint;
+	m.details.metal.fuzz = fuzz;
 
 	return m;
 }
@@ -37,10 +37,10 @@ Material create_dielectric_material(float r, float g, float b, float tint, float
 	Material m;
 
 	m.type = 3;
-	m.dielectric.color = (cl_float3){r, g, b};
-	m.dielectric.tint = tint;
-	m.dielectric.fuzz = fuzz;
-	m.dielectric.refIdx = refIdx;
+	m.color = (cl_float3){r, g, b};
+	m.details.dielectric.tint = tint;
+	m.details.dielectric.fuzz = fuzz;
+	m.details.dielectric.refIdx = refIdx;
 
 	return m;
 }

@@ -22,35 +22,29 @@ typedef struct CLImage {
 
 typedef char MaterialID;
 
-typedef union Material {
-	cl_int type;
+typedef struct Material {
+	cl_uchar type;
+	cl_float3 color;
 
-	struct {
-		cl_int _;
-		cl_float3 color;
-		cl_float brightness;
-	} lightSource;
+	union {
+		struct {
+			cl_float brightness;
+		} lightSource;
 
-	// TODO: attenuation
-	struct {
-		cl_int _;
-		cl_float3 color;
-	} lambertian;
+		struct {
+		} lambertian;
 
-	struct {
-		cl_int _;
-		cl_float3 color;
-		cl_float tint;
-		cl_float fuzz;
-	} metal;
+		struct {
+			cl_float tint;
+			cl_float fuzz;
+		} metal;
 
-	struct {
-		cl_int _;
-		cl_float3 color;
-		cl_float tint;
-		cl_float fuzz;
-		cl_float refIdx;
-	} dielectric;
+		struct {
+			cl_float tint;
+			cl_float fuzz;
+			cl_float refIdx;
+		} dielectric;
+	} details;
 } Material;
 
 typedef struct Scene {

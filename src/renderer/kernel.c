@@ -8,7 +8,7 @@
 
 #define FILE_NAME "src/renderer/kernel/main.cl"
 #define KERNEL_NAME "renderer"
-#define PROGRAM_ARGS ""
+#define PROGRAM_ARGS "-Werror"
 //"-cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math"
 
 //---- private functions -----------------------------------------------------//
