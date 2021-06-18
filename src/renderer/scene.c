@@ -19,7 +19,7 @@ void create_scene(Renderer *renderer, int width, int height, int depth) {
 	renderer->scene.voxels = malloc(sizeof(cl_int) * width * height * depth);
 
 	for(int i = 0; i < width * height * depth; i++) {
-		renderer->scene.voxels[i] = -1;
+		renderer->scene.voxels[i] = 0;
 	}
 }
 

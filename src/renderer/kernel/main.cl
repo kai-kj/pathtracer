@@ -1,5 +1,3 @@
-//---- structs ---------------------------------------------------------------//
-
 #define PI 3.14159265359f
 
 #define MATERIAL_TYPE_EMPTY 0
@@ -58,7 +56,7 @@ typedef struct Camera {
 typedef struct Renderer {
 	global float3 *image;
 	int2 imageSize;
-	global unsigned char *voxels;
+	global uchar *voxels;
 	int3 sceneSize;
 	global Material *materials;
 	float3 bgColor;
@@ -188,7 +186,23 @@ Material get_material(Renderer *r, MaterialID id) {
 
 //---- ray -------------------------------------------------------------------//
 
-void init_voxel_traversal(Ray ray, int3 voxel, int3 *stepDir, float3 *tMax, float3 *tDelta) {
+void init_voxel_traversal(Ray ray, int3 *voxel, int3 *stepDir, float3 *tMax, float3 *tDelta) {
+	if(dot(1, ray.direction) < 0) {
+		*voxel = (int3){
+			ceil(ray.origin.x) + 0.01f,
+			ceil(ray.origin.y) + 0.01f,
+			ceil(ray.origin.z) + 0.01f
+		};
+
+	} else {
+		*voxel = (int3){
+			floor(ray.origin.x) + 0.01f,
+			floor(ray.origin.y) + 0.01f,
+			floor(ray.origin.z) + 0.01f
+		};
+		
+	}
+
 	*stepDir = (int3){
 		(ray.direction.x >= 0) ? 1 : -1,
 		(ray.direction.y >= 0) ? 1 : -1,
@@ -196,9 +210,9 @@ void init_voxel_traversal(Ray ray, int3 voxel, int3 *stepDir, float3 *tMax, floa
 	};
 
 	*tMax = (float3){
-		(ray.direction.x != 0) ? (voxel.x + stepDir->x - ray.origin.x) / ray.direction.x : MAXFLOAT,
-		(ray.direction.y != 0) ? (voxel.y + stepDir->y - ray.origin.y) / ray.direction.y : MAXFLOAT,
-		(ray.direction.z != 0) ? (voxel.z + stepDir->z - ray.origin.z) / ray.direction.z : MAXFLOAT
+		(ray.direction.x != 0) ? (voxel->x + stepDir->x - ray.origin.x) / ray.direction.x : MAXFLOAT,
+		(ray.direction.y != 0) ? (voxel->y + stepDir->y - ray.origin.y) / ray.direction.y : MAXFLOAT,
+		(ray.direction.z != 0) ? (voxel->z + stepDir->z - ray.origin.z) / ray.direction.z : MAXFLOAT
 	};
 	
 	*tDelta = (float3){
@@ -263,8 +277,7 @@ bool cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, M
 	int3 stepDir;
 	float3 tMax, tDelta;
 
-	init_voxel_traversal(ray, *voxel, &stepDir, &tMax, &tDelta);
-	
+	init_voxel_traversal(ray, voxel, &stepDir, &tMax, &tDelta);
 	int side;
 
 	while(1) {
@@ -289,6 +302,7 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 	// TODO: russian rulette
 	// TODO: start with ray-box intersection check
 
+	int returnFlag = false;
 	float3 mask = 1;
 	float3 color = 0;
 	int3 voxel = convert_int3(ray.origin);
@@ -300,37 +314,53 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 		
 		if(cast_ray(r, ray, &voxel, &hitPos, &iNormal, &material)) {
 			float3 fNormal = convert_float3(iNormal);
-
-			// return material.color;
+			hitPos += fNormal * 0.01f;
+					
+			if(i == 1) {
+				// return -ray.direction * 0.5f + 0.5f;
+				// return hitPos / convert_float3(r->sceneSize);
+				/* return material.color; */
+				// return convert_float3(voxel) / convert_float3(r->sceneSize);
+			}
 			
 			// TODO: dielectric material
-			if(material.type == MATERIAL_TYPE_LIGHT_SOURCE) {
-				color = mask * material.color * material.details.lightSource.brightness;
-				break;
-
-			} else if(material.type == MATERIAL_TYPE_LAMBERTIAN) {
-				ray = (Ray){
+			switch(material.type) {
+				case MATERIAL_TYPE_LIGHT_SOURCE:
+					color = mask * material.color * material.details.lightSource.brightness;
+					returnFlag = true;
+					break;
+				
+				case MATERIAL_TYPE_LAMBERTIAN:
+					ray = (Ray){
+						hitPos,
+						normalize(fNormal + get_random_unit_vector(r->rng))
+					};
+					voxel += iNormal;
+					mask *= material.color;
+					break;
+				
+				case MATERIAL_TYPE_METAL:
+					ray = (Ray){
 					hitPos,
-					normalize(fNormal + get_random_unit_vector(r->rng))
-				};
-				voxel += iNormal;
-				mask *= material.color;
-			
-			} else if(material.type == MATERIAL_TYPE_METAL) {
-				ray = (Ray){
-					hitPos,
-					normalize(get_reflection_dir(ray.direction, fNormal) + get_random_unit_vector(r->rng) * material.details.metal.fuzz)
-				};
-				voxel += iNormal;
-				mask = mask * (1 - material.details.metal.tint) + mask * material.color * material.details.metal.tint;
+						normalize(get_reflection_dir(ray.direction, fNormal) + get_random_unit_vector(r->rng) * material.details.metal.fuzz)
+					};
+					voxel += iNormal;
+					mask = mask * (1 - material.details.metal.tint) + mask * material.color * material.details.metal.tint;
+					break;
+				
+				default:
+					break;
 
 			}
 
 		} else {
 			color = mask * r->bgColor;
-			break;
+			returnFlag = true;
 		
 		}
+
+		if(returnFlag == true)
+			break;
 
 	}
 
@@ -340,9 +370,33 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 //---- main ------------------------------------------------------------------//
 
 // TODO: better sampling
+
+Ray get_first_ray(Renderer *r, int id) {
+	int row = id / r->imageSize.x;
+	int column = id % r->imageSize.x;
+
+	float aspectRatio = (float)r->imageSize.x / (float)r->imageSize.y;
+
+	float xOffset = 2 * (float)(column - r->imageSize.x / 2) / (float)r->imageSize.x * r->camera.sensorWidth;
+	float yOffset = 2 * (float)(row - r->imageSize.y / 2) / (float)r->imageSize.y * r->camera.sensorWidth / aspectRatio;
+	float3 offset = (float3){xOffset, yOffset, r->camera.focalLength};
+
+	float3 origin = r->camera.pos + rotate_vector(offset, r->camera.rot);
+
+	float3 target = r->camera.pos;
+
+	float3 direction = -normalize(target - origin);
+
+	return (Ray){r->camera.pos, direction};
+}
+
+float3 adjust_color(Renderer *r, float3 color) {
+	return color * r->camera.exposure * r->camera.aperture;
+}
+
 kernel void renderer(
 	global float3 *image, int2 imageSize,
-	global unsigned char *voxels, int3 sceneSize,
+	global uchar *voxels, int3 sceneSize,
 	global Material *materials,
 	float3 bgColor,
 	Camera camera,
@@ -361,26 +415,11 @@ kernel void renderer(
 		&rng
 	};
 
-	int row = id / imageSize.x;
-	int column = id % imageSize.x;
+	Ray ray = get_first_ray(&r, id);
 
-	float aspectRatio = (float)imageSize.x / (float)imageSize.y;
-
-	float xOffset = 2 * (float)(column - imageSize.x / 2) / (float)imageSize.x * camera.sensorWidth;
-	float yOffset = 2 * (float)(row - imageSize.y / 2) / (float)imageSize.y * camera.sensorWidth / aspectRatio;
-	float3 offset = (float3){xOffset, yOffset, camera.focalLength};
-
-	float3 origin = camera.pos + rotate_vector(offset, camera.rot);
-
-	float3 target = camera.pos;
-
-	float3 direction = -normalize(target - origin);
-
-	Ray ray = (Ray){camera.pos, direction};
-
-	float3 color = get_color(&r, ray, 100) * camera.exposure * camera.aperture;
+	float3 color = get_color(&r, ray, 100);
+	color = adjust_color(&r, color);
 	
 	image[id] = (image[id] * sampleNumber + color) / (sampleNumber + 1);
-	// image[id] = color;
 
 }
