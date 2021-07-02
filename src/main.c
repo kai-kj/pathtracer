@@ -18,10 +18,7 @@
 #include "../include/stb_image_write.h"
 
 #include "renderer/renderer.h"
-
-int to_voxel_index(Scene scene, int x, int y, int z) {
-	return x + y * scene.size.x + z * scene.size.x * scene.size.y;
-}
+#include "renderer/kernel.h"
 
 int main(void) {
 	Renderer *r = create_renderer();
@@ -29,7 +26,7 @@ int main(void) {
 	set_image_properties(r, 800, 600);
 
 	int size = 10;
-	int samples = 50;
+	int samples = 10;
 
 	int width = size;
 	int height = size;
@@ -40,12 +37,12 @@ int main(void) {
 	// set_background_color(r, 1, 1, 1);
 	set_background_color(r, 0, 0, 0);
 
-	MaterialID white = add_material(r, create_lambertian_material(1, 1, 1));
-	MaterialID red = add_material(r, create_lambertian_material(1, 0, 0));
-	MaterialID green = add_material(r, create_lambertian_material(0, 1, 0));
-	MaterialID blue = add_material(r, create_lambertian_material(0, 0, 1));
-	MaterialID mirror = add_material(r, create_metal_material(0, 0, 0, 0.5, 0));
-	MaterialID light = add_material(r, create_light_source_material(1, 1, 0.5, 3));
+	Material white = create_lambertian_material(1, 1, 1);
+	Material red = create_lambertian_material(1, 0, 0);
+	Material green = create_lambertian_material(0, 1, 0);
+	Material blue = create_lambertian_material(0, 0, 1);
+	Material mirror = create_metal_material(0, 0, 0, 0.5, 0);
+	Material light = create_light_source_material(1, 1, 0.5, 3);
 
 	// side walls
 	for(int y = 0; y <= width; ++y) {
@@ -96,10 +93,11 @@ int main(void) {
 
 	add_voxel(r, width * 0.8, height - 1, depth * 0.7, light);
 	add_voxel(r, width * 0.8, height - 2, depth * 0.7, light);
-	// add_voxel(r, width * 0.9, height - 1, depth * 0.7, light);
 
 	// set_camera_properties(r, size * 0.5, size * 0.4, 1, -PI / 16, 0, 0, 1, 1, 0.001, 1000);
-	set_camera_properties(r, size * 0.5, size * 0.5, 1, 0, 0, 0, 1.5, 1, 0.001, 1000);
+	set_camera_properties(r, size * 0.5, size * 0.5, 2, 0, 0, 0, 1.5, 1, 0.001, 1000);
+
+	printf("boxes: %d\n", r->scene.boxCount);
 
 	render_to_file(r, samples, "render.png", 1);
 

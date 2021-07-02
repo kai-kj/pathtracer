@@ -21,7 +21,7 @@ double get_time();
 int sec_to_min(int seconds);
 int sec_to_h(int seconds);
 char *read_file(char *fileName);
-static char *get_file_ext(char *filename);
+char *get_file_ext(char *filename);
 void msg(char *format, ...);
 
 //----------------------------------------------------------------------------//
@@ -80,7 +80,7 @@ char *read_file(char *fileName) {
 	return source;
 }
 
-static char *get_file_ext(char *filename) {
+char *get_file_ext(char *filename) {
 	char *dot = strrchr(filename, '.');
 
 	if(!dot || dot == filename)

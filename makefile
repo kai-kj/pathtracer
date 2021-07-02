@@ -40,7 +40,7 @@ SRC := src
 
 default: clean $(BIN)
 
-run: $(BIN)
+run: clean $(BIN)
 	./$(BIN)
 
 $(BUILD):
@@ -48,13 +48,11 @@ $(BUILD):
 	$(MKDIR) $(BUILD)/renderer
 
 $(BIN): $(BUILD)
-	$(CC) -c $(SRC)/renderer/camera.c -o $(BUILD)/renderer/camera.a
+	$(CC) -c $(SRC)/renderer/renderer.c -o $(BUILD)/renderer/renderer.a
 	$(CC) -c $(SRC)/renderer/kernel.c -o $(BUILD)/renderer/kernel.a
-	$(CC) -c $(SRC)/renderer/material.c -o $(BUILD)/renderer/material.a
-	$(CC) -c $(SRC)/renderer/scene.c -o $(BUILD)/renderer/scene.a
 	$(CC) -c $(SRC)/main.c -o $(BUILD)/main.o
 
 	$(CC) $(BUILD)/main.o $(BUILD)/renderer/* -o $(BIN)
 
 clean:
-	$(RM) $(BIN) $(BUILD)
+	$(RM) $(BIN) $(BUILD) log.txt

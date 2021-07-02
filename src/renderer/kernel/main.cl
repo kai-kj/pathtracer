@@ -11,8 +11,7 @@
 // TODO: char -> ushort
 
 typedef struct Ray {
-	float3 origin;
-	float3 direction;
+	float3 origin; float3 direction;
 } Ray;
 
 // TODO: attenuation for diffuse material
@@ -41,8 +40,6 @@ typedef struct Material {
 	} details;
 } Material;
 
-typedef int MaterialID;
-
 typedef struct Camera {
 	float3 pos;
 	float3 rot;
@@ -52,17 +49,21 @@ typedef struct Camera {
 	float exposure;
 } Camera;
 
+typedef struct AABB {
+	float3 lb;
+	float3 rt;
+	Material material;
+} AABB;
+
 // TODO: use unsigned variables or chars
 typedef struct Renderer {
-	global float3 *image;
 	int2 imageSize;
-	global uchar *voxels;
-	int3 sceneSize;
-	global Material *materials;
+	global float3 *image;
+	int boxCount;
+	global AABB *boxes;
 	float3 bgColor;
 	Camera camera;
 	ulong *rng;
-
 } Renderer;
 
 //---- pesudo rng ------------------------------------------------------------//
@@ -96,6 +97,14 @@ float3 get_random_unit_vector(ulong *rng) {
 	};
 }
 
+int get_max_idx(float t[6], int a, int b) {
+	return (t[a] > t[b]) ? a : b;
+}
+
+int get_min_idx(float t[6], int a, int b) {
+	return (t[a] < t[b]) ? a : b;
+}
+
 //---- math ------------------------------------------------------------------//
 
 float3 rotate_vector_x(float3 vec, float rot) {
@@ -121,16 +130,6 @@ float3 rotate_vector_z(float3 vec, float rot) {
 		vec.z
 	};
 }
-
-// float3 rotate_vector(float3 vec, float3 rot) {
-// 	float3 nVec = vec;
-	
-// 	nVec = rotate_vector_x(nVec, rot.x);
-// 	nVec = rotate_vector_y(nVec, rot.y);
-// 	nVec = rotate_vector_z(nVec, rot.z);
-
-// 	return nVec;
-// }
 
 float3 rotate_vector(float3 vec, float3 rot) {
 	float3 nVec;
@@ -164,137 +163,97 @@ float get_reflectance(float cosTheta, float relativeRefIdx) {
 	return r + (1 - r) * pow((1 - cosTheta), 5);
 }
 
-//---- scene -----------------------------------------------------------------//
+bool ray_box(Ray ray, AABB box, float3 dirFrac, float *dist) {
+	float t[6];
 
-int get_voxel_index(Renderer *r, int3 voxel) {
-	return voxel.x + voxel.y * r->sceneSize.x + voxel.z * r->sceneSize.x * r->sceneSize.y;
+	t[0] = (box.lb.x - ray.origin.x) * dirFrac.x;
+	t[1] = (box.rt.x - ray.origin.x) * dirFrac.x;
+	t[2] = (box.lb.y - ray.origin.y) * dirFrac.y;
+	t[3] = (box.rt.y - ray.origin.y) * dirFrac.y;
+	t[4] = (box.lb.z - ray.origin.z) * dirFrac.z;
+	t[5] = (box.rt.z - ray.origin.z) * dirFrac.z;
+
+	float tMin = max(max(min(t[0], t[1]), min(t[2], t[3])), min(t[4], t[5]));
+	float tMax = min(min(max(t[0], t[1]), max(t[2], t[3])), max(t[4], t[5]));
+
+	if(tMax < 0 || tMin > tMax) return false;
+
+	*dist = tMin;
+	
+	return true;
 }
 
-bool is_out_of_scene(Renderer *r, int3 voxel) {
-	return voxel.x < 0 || voxel.x >= r->sceneSize.x || voxel.y < 0 || voxel.y >= r->sceneSize.y || voxel.z < 0 || voxel.z >= r->sceneSize.z;
+bool fast_ray_box(Ray ray, AABB box, float3 invDir, float *dist) {
+	float tx1 = (box.lb.x - ray.origin.x) * invDir.x;
+	float tx2 = (box.rt.x - ray.origin.x) * invDir.x;
+
+	float tMin = min(tx1, tx2);
+	float tMax = max(tx1, tx2);
+
+	float ty1 = (box.lb.y - ray.origin.y) * invDir.y;
+	float ty2 = (box.rt.y - ray.origin.y) * invDir.y;
+
+	tMin = max(tMin, min(ty1, ty2));
+	tMax = min(tMax, max(ty1, ty2));
+	
+	*dist = tMin;
+	return tMax >= tMin;
 }
 
-//---- material --------------------------------------------------------------//
+int3 get_ray_box_normal(Ray ray, AABB box, float3 dirFrac) {
+	float t[6];
 
-MaterialID get_material_ID(Renderer *r, int3 voxel) {
-	return r->voxels[get_voxel_index(r, voxel)];
-}
+	t[0] = (box.lb.x - ray.origin.x) * dirFrac.x;
+	t[1] = (box.rt.x - ray.origin.x) * dirFrac.x;
+	t[2] = (box.lb.y - ray.origin.y) * dirFrac.y;
+	t[3] = (box.rt.y - ray.origin.y) * dirFrac.y;
+	t[4] = (box.lb.z - ray.origin.z) * dirFrac.z;
+	t[5] = (box.rt.z - ray.origin.z) * dirFrac.z;
 
-Material get_material(Renderer *r, MaterialID id) {
-	return r->materials[id - 1];
+	int tMinIdx = get_max_idx(t, get_max_idx(t, get_min_idx(t, 0, 1), get_min_idx(t, 2, 3)), get_min_idx(t, 4, 5));
+
+	switch(tMinIdx) {
+		case 0: return (int3){-1, 0, 0};
+		case 1: return (int3){1, 0, 0};
+		case 2: return (int3){0, -1, 0};
+		case 3: return (int3){0, 1, 0};
+		case 4: return (int3){0, 0, -1};
+		case 5: return (int3){0, 0, 1};
+		default: return 0;
+	}
 }
 
 //---- ray -------------------------------------------------------------------//
 
-void init_voxel_traversal(Ray ray, int3 *voxel, int3 *stepDir, float3 *tMax, float3 *tDelta) {
-	if(dot(1, ray.direction) < 0) {
-		*voxel = (int3){
-			ceil(ray.origin.x) + 0.01f,
-			ceil(ray.origin.y) + 0.01f,
-			ceil(ray.origin.z) + 0.01f
-		};
+bool cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *material) {
+	bool hit = false;
+	float minDist;
+	int minIdx;
 
-	} else {
-		*voxel = (int3){
-			floor(ray.origin.x) + 0.01f,
-			floor(ray.origin.y) + 0.01f,
-			floor(ray.origin.z) + 0.01f
-		};
-		
-	}
+	float3 dirFrac = 1.0f / ray.direction;
 
-	*stepDir = (int3){
-		(ray.direction.x >= 0) ? 1 : -1,
-		(ray.direction.y >= 0) ? 1 : -1,
-		(ray.direction.z >= 0) ? 1 : -1
-	};
+	for(uint i = 0; i < r->boxCount; i++) {
+		AABB box = r->boxes[i];
+		float t;
+		float3 normal;
 
-	*tMax = (float3){
-		(ray.direction.x != 0) ? (voxel->x + stepDir->x - ray.origin.x) / ray.direction.x : MAXFLOAT,
-		(ray.direction.y != 0) ? (voxel->y + stepDir->y - ray.origin.y) / ray.direction.y : MAXFLOAT,
-		(ray.direction.z != 0) ? (voxel->z + stepDir->z - ray.origin.z) / ray.direction.z : MAXFLOAT
-	};
-	
-	*tDelta = (float3){
-		(ray.direction.x != 0) ? 1 / ray.direction.x * stepDir->x : MAXFLOAT,
-		(ray.direction.y != 0) ? 1 / ray.direction.y * stepDir->y : MAXFLOAT,
-		(ray.direction.z != 0) ? 1 / ray.direction.z * stepDir->z : MAXFLOAT
-	};
-}
-
-void step_voxel_traversal(int3 *voxel, int3 stepDir, float3 *tMax, float3 tDelta, int *side) {
-	if(tMax->x < tMax->y) {
-		if(tMax->x < tMax->z) {
-			voxel->x += stepDir.x;
-			tMax->x += tDelta.x;
-			*side = 0;
-		} else {
-			voxel->z += stepDir.z;
-			tMax->z += tDelta.z;
-			*side = 2;
-		}
-
-	} else {
-		if(tMax->y < tMax->z) {
-			voxel->y += stepDir.y;
-			tMax->y += tDelta.y;
-			*side = 1;
-		} else {
-			voxel->z += stepDir.z;
-			tMax->z += tDelta.z;
-			*side = 2;
+		/* if(ray_box(ray, box, dirFrac, &t)) { */
+		if(fast_ray_box(ray, box, dirFrac, &t)) {
+			if(!hit || t <  minDist) {
+				hit = true;
+				minDist = t;
+				minIdx = i;
+			}
 		}
 	}
-}
 
-void get_voxel_traversal_info(Ray ray, int3 voxel, int3 stepDir, int side, float3 *hitPos, int3 *normal) {
-	switch(side) {
-		case 0:
-			hitPos->x = (float)voxel.x;
-			hitPos->y = ray.origin.y + (hitPos->x - ray.origin.x) * ray.direction.y / ray.direction.x;
-			hitPos->z = ray.origin.z + (hitPos->x - ray.origin.x) * ray.direction.z / ray.direction.x;
-			*normal = (int3){-stepDir.x, 0, 0};
-			break;
-		
-		case 1:
-			hitPos->y = (float)voxel.y;
-			hitPos->x = ray.origin.x + (hitPos->y - ray.origin.y) * ray.direction.x / ray.direction.y;
-			hitPos->z = ray.origin.z + (hitPos->y - ray.origin.y) * ray.direction.z / ray.direction.y;
-			*normal = (int3){0, -stepDir.y, 0};
-			break;
-		
-		case 2:
-			hitPos->z = (float)voxel.z;
-			hitPos->y = ray.origin.y + (hitPos->z - ray.origin.z) * ray.direction.y / ray.direction.z;
-			hitPos->x = ray.origin.x + (hitPos->z - ray.origin.z) * ray.direction.x / ray.direction.z;
-			*normal = (int3){0, 0, -stepDir.z};
-			break;
+	if(!hit) return false;
 
-	}
-}
+	*hitPos = ray.origin + ray.direction * minDist;
+	/* *normal = get_ray_box_normal(ray, r->boxes[minIdx], dirFrac); */
+	*material = r->boxes[minIdx].material;
 
-bool cast_ray(Renderer *r, Ray ray, int3 *voxel, float3 *hitPos, int3 *normal, Material *material) {
-	int3 stepDir;
-	float3 tMax, tDelta;
-
-	init_voxel_traversal(ray, voxel, &stepDir, &tMax, &tDelta);
-	int side;
-
-	while(1) {
-		step_voxel_traversal(voxel, stepDir, &tMax, tDelta, &side);
-
-		if(is_out_of_scene(r, *voxel))
-			return false;
-
-		MaterialID id = get_material_ID(r, *voxel);
-
-		if(id != 0) {
-			*material = get_material(r, id);
-			get_voxel_traversal_info(ray, *voxel, stepDir, side, hitPos, normal);
-			return true;
-		}
-		
-	}
+	return true;
 }
 
 float3 get_color(Renderer *r, Ray ray, int maxDepth) {
@@ -305,24 +264,18 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 	int returnFlag = false;
 	float3 mask = 1;
 	float3 color = 0;
-	int3 voxel = convert_int3(ray.origin);
 	
 	for(int i = 0; i < maxDepth; i++) {
 		float3 hitPos;
 		int3 iNormal;
 		Material material;
 		
-		if(cast_ray(r, ray, &voxel, &hitPos, &iNormal, &material)) {
+		if(cast_ray(r, ray, &hitPos, &iNormal, &material)) {
 			float3 fNormal = convert_float3(iNormal);
 			hitPos += fNormal * 0.01f;
-					
-			if(i == 1) {
-				// return -ray.direction * 0.5f + 0.5f;
-				// return hitPos / convert_float3(r->sceneSize);
-				/* return material.color; */
-				// return convert_float3(voxel) / convert_float3(r->sceneSize);
-			}
-			
+
+			return material.color;
+
 			// TODO: dielectric material
 			switch(material.type) {
 				case MATERIAL_TYPE_LIGHT_SOURCE:
@@ -335,16 +288,14 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 						hitPos,
 						normalize(fNormal + get_random_unit_vector(r->rng))
 					};
-					voxel += iNormal;
 					mask *= material.color;
 					break;
 				
 				case MATERIAL_TYPE_METAL:
 					ray = (Ray){
-					hitPos,
+						hitPos,
 						normalize(get_reflection_dir(ray.direction, fNormal) + get_random_unit_vector(r->rng) * material.details.metal.fuzz)
 					};
-					voxel += iNormal;
 					mask = mask * (1 - material.details.metal.tint) + mask * material.color * material.details.metal.tint;
 					break;
 				
@@ -395,9 +346,8 @@ float3 adjust_color(Renderer *r, float3 color) {
 }
 
 kernel void renderer(
-	global float3 *image, int2 imageSize,
-	global uchar *voxels, int3 sceneSize,
-	global Material *materials,
+	int2 imageSize, global float3 *image,
+	int boxCount, global AABB *boxes,
 	float3 bgColor,
 	Camera camera,
 	int sampleNumber,
@@ -407,9 +357,8 @@ kernel void renderer(
 	ulong rng = init_rng_2(id, seed);
 
 	Renderer r = (Renderer){
-		image, imageSize,
-		voxels, sceneSize,
-		materials,
+		imageSize, image,
+		boxCount, boxes,
 		bgColor,
 		camera,
 		&rng

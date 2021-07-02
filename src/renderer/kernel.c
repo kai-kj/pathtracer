@@ -132,8 +132,6 @@ Renderer *create_renderer() {
 	Renderer *renderer = malloc(sizeof(Renderer));
 
 	renderer->scene = (Scene){
-		{.x = 0, .y = 0, .z = 0},
-		NULL,
 		0,
 		NULL,
 		{.x = 0, .y = 0, .z = 0}
@@ -180,8 +178,8 @@ void render_sample(Renderer *renderer, int sampleNumber, int verbose) {
 	cl_ulong seed = rand();
 
 	// non-constant arguments
-	clSetKernelArg(renderer->clProgram.kernel, 7, sizeof(cl_int), &sampleNumber);
-	clSetKernelArg(renderer->clProgram.kernel, 8, sizeof(cl_ulong), &seed);
+	clSetKernelArg(renderer->clProgram.kernel, 6, sizeof(cl_int), &sampleNumber);
+	clSetKernelArg(renderer->clProgram.kernel, 7, sizeof(cl_ulong), &seed);
 
 	size_t pixelCount = renderer->clImage.size.x * renderer->clImage.size.y;
 
@@ -192,38 +190,33 @@ void render_sample(Renderer *renderer, int sampleNumber, int verbose) {
 		destroy_renderer(renderer);
 		exit(1);
 	}
+
+	clFinish(renderer->clProgram.queue);
 }
 
 Image *render_image(Renderer *renderer, int samples, int verbose) {
-	int voxelCount = renderer->scene.size.x * renderer->scene.size.y * renderer->scene.size.z;
-
-	renderer->clProgram.voxelBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(cl_uchar) * voxelCount, NULL, NULL);
-	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.voxelBuff, CL_TRUE, 0, sizeof(cl_uchar) * voxelCount, renderer->scene.voxels, 0, NULL, NULL);
-
-	renderer->clProgram.materialBuff =  clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(Material) * renderer->scene.materialCount, NULL, NULL);
-	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.materialBuff, CL_TRUE, 0, sizeof(Material) * renderer->scene.materialCount, renderer->scene.materials, 0, NULL, NULL);
+	renderer->clProgram.boxBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(AABB) * renderer->scene.boxCount, NULL, NULL);
+	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.boxBuff, CL_TRUE, 0, sizeof(AABB) * renderer->scene.boxCount, renderer->scene.boxes, 0, NULL, NULL);
 
 	// constant arguments
-	clSetKernelArg(renderer->clProgram.kernel, 0, sizeof(cl_mem), &renderer->clProgram.imageBuff);
-	clSetKernelArg(renderer->clProgram.kernel, 1, sizeof(cl_int2), &renderer->clImage.size);
-	clSetKernelArg(renderer->clProgram.kernel, 2, sizeof(cl_mem), &renderer->clProgram.voxelBuff);
-	clSetKernelArg(renderer->clProgram.kernel, 3, sizeof(cl_int3), &renderer->scene.size);
-	clSetKernelArg(renderer->clProgram.kernel, 4, sizeof(cl_mem), &renderer->clProgram.materialBuff);
-	clSetKernelArg(renderer->clProgram.kernel, 5, sizeof(cl_float3), &renderer->scene.bgColor);
-	clSetKernelArg(renderer->clProgram.kernel, 6, sizeof(Camera), &renderer->camera);
+	clSetKernelArg(renderer->clProgram.kernel, 0, sizeof(cl_int2), &renderer->clImage.size);
+	clSetKernelArg(renderer->clProgram.kernel, 1, sizeof(cl_mem), &renderer->clProgram.imageBuff);
+	clSetKernelArg(renderer->clProgram.kernel, 2, sizeof(cl_int), &renderer->scene.boxCount);
+	clSetKernelArg(renderer->clProgram.kernel, 3, sizeof(cl_mem), &renderer->clProgram.boxBuff);
+	clSetKernelArg(renderer->clProgram.kernel, 4, sizeof(cl_float3), &renderer->scene.bgColor);
+	clSetKernelArg(renderer->clProgram.kernel, 5, sizeof(Camera), &renderer->camera);
 
 	for(int i = 0; i < samples; i++) {
 		render_sample(renderer, i, verbose);
+		msg("frame\n");
 	}
 	
-	clFinish(renderer->clProgram.queue);
-
-	clReleaseMemObject(renderer->clProgram.voxelBuff);
-	clReleaseMemObject(renderer->clProgram.materialBuff);
+	clReleaseMemObject(renderer->clProgram.boxBuff);
 
 	size_t pixelCount = renderer->clImage.size.x * renderer->clImage.size.y;
 
 	clEnqueueReadBuffer(renderer->clProgram.queue, renderer->clProgram.imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, renderer->clImage.data, 0, NULL, NULL);
+
 	clFinish(renderer->clProgram.queue);
 
 	gamma_correct_CLImage(renderer->clImage);

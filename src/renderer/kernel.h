@@ -4,7 +4,7 @@
 #include <CL/cl.h>
 
 #include "../../include/k_image.h"
-#include "renderer_structs.h"
+#include "renderer.h"
 
 Renderer *create_renderer();
 
