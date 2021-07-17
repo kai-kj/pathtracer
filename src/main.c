@@ -9,16 +9,15 @@
 #define PI 3.14159265358979323846
 
 #define K_UTIL_IMPLEMENTATION
-#include "../include/k_util.h"
+#include "k_util.h"
 
 #define K_IMAGE_IMPLEMENTATION
-#include "../include/k_image.h"
+#include "k_image.h"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../include/stb_image_write.h"
+// #define K_OPENCL_IMPLEMENTATION
+// #include "k_opencl.h"
 
 #include "renderer/renderer.h"
-#include "renderer/kernel.h"
 
 int main(void) {
 	Renderer *r = create_renderer();
@@ -26,7 +25,7 @@ int main(void) {
 	set_image_properties(r, 800, 600);
 
 	int size = 10;
-	int samples = 10;
+	int samples = 25;
 
 	int width = size;
 	int height = size;
@@ -34,21 +33,19 @@ int main(void) {
 
 	create_scene(r, width + 1, height + 1, depth + 1);
 
-	// set_background_color(r, 1, 1, 1);
 	set_background_color(r, 0, 0, 0);
 
 	Material white = create_lambertian_material(1, 1, 1);
 	Material red = create_lambertian_material(1, 0, 0);
 	Material green = create_lambertian_material(0, 1, 0);
-	Material blue = create_lambertian_material(0, 0, 1);
 	Material mirror = create_metal_material(0, 0, 0, 0.5, 0);
-	Material light = create_light_source_material(1, 1, 0.5, 3);
+	Material light = create_light_source_material(1, 1, 0.5, 1);
 
 	// side walls
 	for(int y = 0; y <= width; ++y) {
 		for(int z = 0; z <= depth; ++z) {
 			add_voxel(r, 0, y, z, red);
-			add_voxel(r, width, y, z, mirror);
+			add_voxel(r, width, y, z, green);
 		}
 	}
 
@@ -62,7 +59,7 @@ int main(void) {
 	// back wall
 	for(int x = 0; x <= width; x++) {
 		for(int y = 0; y <= height; y++) {
-			add_voxel(r, x, y, depth, white);
+			add_voxel(r, x, y, depth, mirror);
 		}
 	}
 
@@ -80,28 +77,32 @@ int main(void) {
 		}
 	}
 
-	// light
-	// for(int x = width * 4 / 10; x <= width * 6 / 10; x++) {
-	// 	for(int z = depth * 4 / 10; z <= depth * 6 / 10; z++) {
-	// 		add_voxel(r, x, 0, z, light);
-	// 	}
-	// }
-
 	// objects
-	// add_voxel(r, width * 0.4, height - 1, depth * 0.6, mirror);
-	// add_voxel(r, width * 0.4, height - 2, depth * 0.6, mirror);
-
 	add_voxel(r, width * 0.8, height - 1, depth * 0.7, light);
 	add_voxel(r, width * 0.8, height - 2, depth * 0.7, light);
 
 	// set_camera_properties(r, size * 0.5, size * 0.4, 1, -PI / 16, 0, 0, 1, 1, 0.001, 1000);
 	set_camera_properties(r, size * 0.5, size * 0.5, 2, 0, 0, 0, 1.5, 1, 0.001, 1000);
 
-	printf("boxes: %d\n", r->scene.boxCount);
+	printf("boxes: %d\n", r->scene.voxelCount);
 
-	render_to_file(r, samples, "render.png", 1);
+	render_image_to_file(r, samples, "render.png", 1);
 
 	destroy_renderer(r);
 
 	return 0;
 }
+
+
+/*
+
+renderer
+	renderer.h
+
+	renderer.c
+	scene.c
+	camera.c
+	material.c
+	image.c
+
+*/

@@ -11,7 +11,8 @@
 // TODO: char -> ushort
 
 typedef struct Ray {
-	float3 origin; float3 direction;
+	float3 origin;
+	float3 direction;
 } Ray;
 
 // TODO: attenuation for diffuse material
@@ -49,18 +50,16 @@ typedef struct Camera {
 	float exposure;
 } Camera;
 
-typedef struct AABB {
-	float3 lb;
-	float3 rt;
+typedef struct Voxel {
+	int3 pos;
 	Material material;
-} AABB;
+} Voxel;
 
-// TODO: use unsigned variables or chars
 typedef struct Renderer {
 	int2 imageSize;
 	global float3 *image;
-	int boxCount;
-	global AABB *boxes;
+	int voxelCount;
+	global Voxel *voxels;
 	float3 bgColor;
 	Camera camera;
 	ulong *rng;
@@ -97,13 +96,8 @@ float3 get_random_unit_vector(ulong *rng) {
 	};
 }
 
-int get_max_idx(float t[6], int a, int b) {
-	return (t[a] > t[b]) ? a : b;
-}
-
-int get_min_idx(float t[6], int a, int b) {
-	return (t[a] < t[b]) ? a : b;
-}
+#define get_max_idx(t, a, b) (t[a] > t[b] ? a : b)
+#define get_min_idx(t, a, b) (t[a] < t[b] ? a : b)
 
 //---- math ------------------------------------------------------------------//
 
@@ -163,64 +157,43 @@ float get_reflectance(float cosTheta, float relativeRefIdx) {
 	return r + (1 - r) * pow((1 - cosTheta), 5);
 }
 
-bool ray_box(Ray ray, AABB box, float3 dirFrac, float *dist) {
+bool ray_voxel(Ray ray, Voxel voxel, float3 dirFrac, float *tMin) {
 	float t[6];
+	t[0] = (voxel.pos.x - ray.origin.x) * dirFrac.x;
+	t[1] = t[0] + dirFrac.x;
+	t[2] = (voxel.pos.y - ray.origin.y) * dirFrac.y;
+	t[3] = t[2] + dirFrac.y;
+	t[4] = (voxel.pos.z - ray.origin.z) * dirFrac.z;
+	t[5] = t[4] + dirFrac.z;
 
-	t[0] = (box.lb.x - ray.origin.x) * dirFrac.x;
-	t[1] = (box.rt.x - ray.origin.x) * dirFrac.x;
-	t[2] = (box.lb.y - ray.origin.y) * dirFrac.y;
-	t[3] = (box.rt.y - ray.origin.y) * dirFrac.y;
-	t[4] = (box.lb.z - ray.origin.z) * dirFrac.z;
-	t[5] = (box.rt.z - ray.origin.z) * dirFrac.z;
-
-	float tMin = max(max(min(t[0], t[1]), min(t[2], t[3])), min(t[4], t[5]));
+	*tMin = max(max(min(t[0], t[1]), min(t[2], t[3])), min(t[4], t[5]));
 	float tMax = min(min(max(t[0], t[1]), max(t[2], t[3])), max(t[4], t[5]));
 
-	if(tMax < 0 || tMin > tMax) return false;
-
-	*dist = tMin;
-	
-	return true;
+	return tMax > *tMin && tMax >= 0;
 }
 
-bool fast_ray_box(Ray ray, AABB box, float3 invDir, float *dist) {
-	float tx1 = (box.lb.x - ray.origin.x) * invDir.x;
-	float tx2 = (box.rt.x - ray.origin.x) * invDir.x;
+constant int3 returnValues[6] = {
+	(int3){-1, 0, 0},
+	(int3){1, 0, 0},
+	(int3){0, -1, 0},
+	(int3){0, 1, 0},
+	(int3){0, 0, -1},
+	(int3){0, 0, 1}
+};
 
-	float tMin = min(tx1, tx2);
-	float tMax = max(tx1, tx2);
-
-	float ty1 = (box.lb.y - ray.origin.y) * invDir.y;
-	float ty2 = (box.rt.y - ray.origin.y) * invDir.y;
-
-	tMin = max(tMin, min(ty1, ty2));
-	tMax = min(tMax, max(ty1, ty2));
-	
-	*dist = tMin;
-	return tMax >= tMin;
-}
-
-int3 get_ray_box_normal(Ray ray, AABB box, float3 dirFrac) {
+int3 get_ray_box_normal(Ray ray, Voxel voxel, float3 dirFrac) {
 	float t[6];
 
-	t[0] = (box.lb.x - ray.origin.x) * dirFrac.x;
-	t[1] = (box.rt.x - ray.origin.x) * dirFrac.x;
-	t[2] = (box.lb.y - ray.origin.y) * dirFrac.y;
-	t[3] = (box.rt.y - ray.origin.y) * dirFrac.y;
-	t[4] = (box.lb.z - ray.origin.z) * dirFrac.z;
-	t[5] = (box.rt.z - ray.origin.z) * dirFrac.z;
+	t[0] = (voxel.pos.x - ray.origin.x) * dirFrac.x;
+	t[1] = t[0] + dirFrac.x;
+	t[2] = (voxel.pos.y - ray.origin.y) * dirFrac.y;
+	t[3] = t[2] + dirFrac.y;
+	t[4] = (voxel.pos.z - ray.origin.z) * dirFrac.z;
+	t[5] = t[4] + dirFrac.z;
 
 	int tMinIdx = get_max_idx(t, get_max_idx(t, get_min_idx(t, 0, 1), get_min_idx(t, 2, 3)), get_min_idx(t, 4, 5));
 
-	switch(tMinIdx) {
-		case 0: return (int3){-1, 0, 0};
-		case 1: return (int3){1, 0, 0};
-		case 2: return (int3){0, -1, 0};
-		case 3: return (int3){0, 1, 0};
-		case 4: return (int3){0, 0, -1};
-		case 5: return (int3){0, 0, 1};
-		default: return 0;
-	}
+	return returnValues[tMinIdx];
 }
 
 //---- ray -------------------------------------------------------------------//
@@ -228,18 +201,19 @@ int3 get_ray_box_normal(Ray ray, AABB box, float3 dirFrac) {
 bool cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *material) {
 	bool hit = false;
 	float minDist;
-	int minIdx;
+	int minIdx = -1;
 
-	float3 dirFrac = 1.0f / ray.direction;
+	float3 dirFrac = (float3){
+		(ray.direction.x != 0) ? (1.0f / ray.direction.x) : FLT_MAX,
+		(ray.direction.y != 0) ? (1.0f / ray.direction.y) : FLT_MAX,
+		(ray.direction.z != 0) ? (1.0f / ray.direction.z) : FLT_MAX
+	};
 
-	for(uint i = 0; i < r->boxCount; i++) {
-		AABB box = r->boxes[i];
+	for(uint i = 0; i < r->voxelCount; i++) {
 		float t;
-		float3 normal;
 
-		/* if(ray_box(ray, box, dirFrac, &t)) { */
-		if(fast_ray_box(ray, box, dirFrac, &t)) {
-			if(!hit || t <  minDist) {
+		if(ray_voxel(ray, r->voxels[i], dirFrac, &t)) {
+			if(!hit || t < minDist) {
 				hit = true;
 				minDist = t;
 				minIdx = i;
@@ -250,8 +224,8 @@ bool cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *mate
 	if(!hit) return false;
 
 	*hitPos = ray.origin + ray.direction * minDist;
-	/* *normal = get_ray_box_normal(ray, r->boxes[minIdx], dirFrac); */
-	*material = r->boxes[minIdx].material;
+	*normal = get_ray_box_normal(ray, r->voxels[minIdx], dirFrac);
+	*material = r->voxels[minIdx].material;
 
 	return true;
 }
@@ -259,7 +233,6 @@ bool cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *mate
 float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 	// TODO: maxDepth
 	// TODO: russian rulette
-	// TODO: start with ray-box intersection check
 
 	int returnFlag = false;
 	float3 mask = 1;
@@ -273,8 +246,6 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 		if(cast_ray(r, ray, &hitPos, &iNormal, &material)) {
 			float3 fNormal = convert_float3(iNormal);
 			hitPos += fNormal * 0.01f;
-
-			return material.color;
 
 			// TODO: dielectric material
 			switch(material.type) {
@@ -310,8 +281,7 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 		
 		}
 
-		if(returnFlag == true)
-			break;
+		if(returnFlag) break;
 
 	}
 
@@ -347,7 +317,7 @@ float3 adjust_color(Renderer *r, float3 color) {
 
 kernel void renderer(
 	int2 imageSize, global float3 *image,
-	int boxCount, global AABB *boxes,
+	int voxelCount, global Voxel *voxels,
 	float3 bgColor,
 	Camera camera,
 	int sampleNumber,
@@ -358,7 +328,7 @@ kernel void renderer(
 
 	Renderer r = (Renderer){
 		imageSize, image,
-		boxCount, boxes,
+		voxelCount, voxels,
 		bgColor,
 		camera,
 		&rng
@@ -366,7 +336,7 @@ kernel void renderer(
 
 	Ray ray = get_first_ray(&r, id);
 
-	float3 color = get_color(&r, ray, 100);
+	float3 color = get_color(&r, ray, 10);
 	color = adjust_color(&r, color);
 	
 	image[id] = (image[id] * sampleNumber + color) / (sampleNumber + 1);

@@ -1,78 +1,19 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#include <CL/cl.h>
+#include "k_image.h"
+#include "renderer_structs.h"
 
-//---- structs----------------------------------------------------------------//
+//---- renderer --------------------------------------------------------------//
 
-typedef struct CLProgram {
-	cl_platform_id platform;
-	cl_device_id device;
-	cl_context context;
-	cl_command_queue queue;
-	cl_program program;
-	cl_kernel kernel;
-	cl_mem imageBuff;
-	cl_mem boxBuff;
-} CLProgram;
+Renderer *create_renderer();
+void destroy_renderer(Renderer *renderer);
 
-typedef struct CLImage {
-	cl_int2 size;
-	cl_float3 *data;
-} CLImage;
+//---- image -----------------------------------------------------------------//
 
-typedef struct Material {
-	cl_uchar type;
-	cl_float3 color;
-
-	union {
-		struct {
-			cl_float brightness;
-		} lightSource;
-
-		struct {
-		} lambertian;
-
-		struct {
-			cl_float tint;
-			cl_float fuzz;
-		} metal;
-
-		struct {
-			cl_float tint;
-			cl_float fuzz;
-			cl_float refIdx;
-		} dielectric;
-	} details;
-} Material;
-
-typedef struct AABB {
-	cl_float3 lb;
-	cl_float3 rt;
-	Material material;
-} AABB;
-
-typedef struct Scene {
-	cl_int boxCount;
-	AABB *boxes;
-	cl_float3 bgColor;
-} Scene;
-
-typedef struct Camera {
-	cl_float3 pos;
-	cl_float3 rot;
-	cl_float sensorWidth;
-	cl_float focalLength;
-	cl_float aperture;
-	cl_float exposure;
-} Camera;
-
-typedef struct Renderer {
-	CLProgram clProgram;
-	CLImage clImage;
-	Scene scene;
-	Camera camera;
-} Renderer;
+void set_image_properties(Renderer *renderer, int width, int height);
+k_Image *render_image(Renderer *renderer, int samples, int verbose);
+void render_image_to_file(Renderer *renderer, int samples, char *fileName, int verbose);
 
 //---- scene -----------------------------------------------------------------//
 

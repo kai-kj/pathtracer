@@ -68,10 +68,8 @@ char *read_file(char *fileName) {
 
 			size_t newLen = fread(source, sizeof(char), bufsize, fp);
 
-			if (ferror(fp) != 0)
-				return NULL;
-			else
-				source[newLen++] = '\0';
+			if (ferror(fp) != 0) return NULL;
+			else source[newLen++] = '\0';
 		}
 
 		fclose(fp);
@@ -82,10 +80,7 @@ char *read_file(char *fileName) {
 
 char *get_file_ext(char *filename) {
 	char *dot = strrchr(filename, '.');
-
-	if(!dot || dot == filename)
-		return "";
-	
+	if(!dot || dot == filename) return "";
 	return dot + 1;
 }
 
