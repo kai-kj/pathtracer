@@ -12,10 +12,10 @@ INC := -I include/
 LIB := -L lib/
 
 # libraries 
-LIBS := -lOpenCL -lm -lSDL2
+LIBS := -lOpenCL -lm -lSDL2 -lSDL2_ttf
 
 # flags 
-FLAGS := -Wall
+FLAGS := -Wall -Wno-missing-braces
 
 # defines
 DEFS := -D CL_TARGET_OPENCL_VERSION=300
@@ -62,6 +62,7 @@ $(BIN): $(BUILD)
 	$(CC) -c $(SRC)/renderer/material.c -o $(BUILD)/renderer/material.a
 	$(CC) -c $(SRC)/renderer/global.c -o $(BUILD)/renderer/global.a
 	$(CC) -c $(SRC)/gui/gui.c -o $(BUILD)/gui/gui.a
+	$(CC) -c $(SRC)/gui/global.c -o $(BUILD)/gui/global.a
 	$(CC) -c $(SRC)/main.c -o $(BUILD)/main.o
 
 	$(CC) $(BUILD)/main.o $(BUILD)/renderer/* $(BUILD)/gui/* -o $(BIN) $(LIBS)

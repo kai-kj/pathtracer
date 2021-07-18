@@ -1,5 +1,3 @@
-#include <math.h>
-#include <k_tools/k_util.h>
 #include "renderer.h"
 
 //---- private ---------------------------------------------------------------//
@@ -62,20 +60,30 @@ static k_Image *_CLImage_to_k_Image(CLImage clImage) {
 //---- public ----------------------------------------------------------------//
 
 RendererStatus set_image_properties(int width, int height) {
+	if(r.clImage.data != NULL) {
+		free(r.clImage.data);
+		r.clImage.data = NULL;
+	}
+
+	r.clImage.size = (cl_int2){.x = width, .y = height};
+	r.clImage.data = malloc(sizeof(cl_float3) * width * height);
+	
+	return RENDERER_SUCCESS;
+}
+
+RendererStatus begin_image_rendering() {
 	if(r.clProgram.imageBuff != NULL) {
 		clReleaseMemObject(r.clProgram.imageBuff);
 		r.clProgram.imageBuff = NULL;
 	}
 
-	r.clImage.size = (cl_int2){.x = width, .y = height};
-	r.clImage.data = malloc(sizeof(cl_float3) * width * height);
-	r.clProgram.imageBuff = clCreateBuffer(r.clProgram.context, CL_MEM_READ_WRITE, sizeof(cl_float3) * width * height, NULL, NULL);
+	if(r.clProgram.voxelBuff != NULL) {
+		clReleaseMemObject(r.clProgram.voxelBuff);
+		r.clProgram.voxelBuff = NULL;
+	}
 
-	return RENDERER_SUCCESS;
-}
-
-RendererStatus begin_image_rendering() {
 	r.clProgram.voxelBuff = clCreateBuffer(r.clProgram.context, CL_MEM_READ_ONLY, sizeof(Voxel) * r.scene.voxelCount, NULL, NULL);
+	r.clProgram.imageBuff = clCreateBuffer(r.clProgram.context, CL_MEM_READ_WRITE, sizeof(cl_float3) * r.clImage.size.x * r.clImage.size.y, NULL, NULL);
 	clEnqueueWriteBuffer(r.clProgram.queue, r.clProgram.voxelBuff, CL_TRUE, 0, sizeof(Voxel) * r.scene.voxelCount, r.scene.voxels, 0, NULL, NULL);
 
 	// constant arguments
@@ -103,10 +111,21 @@ RendererStatus render_sample(int sampleNumber) {
 
 	if(ret != CL_SUCCESS) {
 		_print_kernel_run_error(ret);
-		return RENDERER_FAULURE;
+		return RENDERER_FAILURE;
 	}
 
 	clFinish(r.clProgram.queue);
+
+	return RENDERER_SUCCESS;
+}
+
+RendererStatus read_image() {
+	size_t pixelCount = r.clImage.size.x * r.clImage.size.y;
+
+	clEnqueueReadBuffer(r.clProgram.queue, r.clProgram.imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, r.clImage.data, 0, NULL, NULL);
+	clFinish(r.clProgram.queue);
+
+	_gamma_correct_CLImage(r.clImage);
 
 	return RENDERER_SUCCESS;
 }
@@ -117,13 +136,7 @@ RendererStatus end_image_rendering() {
 		r.clProgram.voxelBuff = NULL;
 	}
 
-	size_t pixelCount = r.clImage.size.x * r.clImage.size.y;
-
-	clEnqueueReadBuffer(r.clProgram.queue, r.clProgram.imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, r.clImage.data, 0, NULL, NULL);
-
-	clFinish(r.clProgram.queue);
-
-	// _gamma_correct_CLImage(r.clImage);
+	read_image();
 
 	return RENDERER_SUCCESS;
 }
@@ -133,7 +146,7 @@ RendererStatus render_image_to_file(int samples, char *fileName) {
 
 	for(int i = 0; i < samples; i++) {
 		msg("%d/%d\n", i, samples);
-		if(render_sample(i) == RENDERER_FAULURE) return RENDERER_FAULURE;
+		if(render_sample(i) == RENDERER_FAILURE) return RENDERER_FAILURE;
 	}
 
 	end_image_rendering();

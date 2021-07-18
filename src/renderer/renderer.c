@@ -1,5 +1,3 @@
-#include <time.h>
-#include <k_tools/k_util.h>
 #include "renderer.h"
 
 #define FILE_NAME "data/kernel/pathtracer.cl"
@@ -43,7 +41,7 @@ RendererStatus create_renderer() {
 
 	if(source == NULL) {
 		_print_source_read_error();
-		return RENDERER_FAULURE;
+		return RENDERER_FAILURE;
 	}
 
 	r.clProgram.program = clCreateProgramWithSource(r.clProgram.context, 1, (const char**)&source, NULL, NULL);
@@ -52,7 +50,7 @@ RendererStatus create_renderer() {
 
 	if(clBuildProgram(r.clProgram.program, 0, NULL, PROGRAM_ARGS, NULL, NULL) != CL_SUCCESS) {
 		_print_program_build_error(r.clProgram.device, r.clProgram.program);
-		return RENDERER_FAULURE;
+		return RENDERER_FAILURE;
 	}
 
 	r.clProgram.kernel = clCreateKernel(r.clProgram.program, KERNEL_NAME, NULL);

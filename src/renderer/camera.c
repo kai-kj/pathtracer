@@ -13,4 +13,6 @@ RendererStatus set_camera_properties(
 	};
 	r.camera.pos = (cl_float3){.x = x, .y = y, .z = z};
 	r.camera.rot = (cl_float3){.x = rotX, .y = rotY, .z = rotZ};
+
+	return RENDERER_SUCCESS;
 }

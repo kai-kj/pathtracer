@@ -70,6 +70,7 @@ typedef struct Renderer {
 	CLImage clImage;
 	Scene scene;
 	Camera camera;
+	int restartRender;
 } Renderer;
 
 #endif

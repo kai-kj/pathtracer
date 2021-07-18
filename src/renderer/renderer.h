@@ -1,12 +1,15 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include <math.h>
+#include <time.h>
 #include <k_tools/k_image.h>
+#include <k_tools/k_util.h>
 #include "structs.h"
 
 typedef char RendererStatus;
 #define RENDERER_SUCCESS 0
-#define RENDERER_FAULURE -1
+#define RENDERER_FAILURE -1
 
 extern Renderer r;
 
@@ -20,6 +23,7 @@ RendererStatus destroy_renderer();
 RendererStatus set_image_properties(int width, int height);
 RendererStatus begin_image_rendering();
 RendererStatus render_sample(int sampleNumber);
+RendererStatus read_image();
 RendererStatus end_image_rendering();
 RendererStatus render_image_to_file(int samples, char *fileName);
 

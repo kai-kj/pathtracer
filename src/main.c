@@ -20,6 +20,9 @@
 #include "renderer/renderer.h"
 #include "gui/gui.h"
 
+#define SCREEN_WIDTH 800
+#define SCREEN_HEIGHT 600
+
 int main(void) {
 	create_renderer();
 
@@ -32,14 +35,14 @@ int main(void) {
 	int height = size;
 	int depth = size;
 
-	set_background_properties(0.5, 0.5, 1, 0.3);
+	set_background_properties(0.5, 0.5, 1, 0.1);
 
 	Material white = create_lambertian_material(0.8, 0.8, 0.8);
 	Material red = create_lambertian_material(1, 0, 0);
 	Material green = create_lambertian_material(0, 1, 0);
 	Material blue = create_lambertian_material(0, 0, 1);
 	Material mirror = create_metal_material(0, 0, 0, 0.5, 0);
-	Material light = create_light_source_material(1, 1, 0.5, 4);
+	Material light = create_light_source_material(1, 1, 0.5, 2);
 	Material sun = create_light_source_material(1, 1, 0.8, 10);
 
 	// side walls
@@ -109,7 +112,11 @@ int main(void) {
 		0.001, 1000
 	);
 
-	render_image_to_file(samples, "render.png");
+	
+	create_window(SCREEN_WIDTH, SCREEN_HEIGHT);
+	start_main_loop();
+
+	// render_image_to_file(samples, "render.png");
 
 	destroy_renderer();
 

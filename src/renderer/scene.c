@@ -25,6 +25,8 @@ static int _get_voxel_index(int x, int y, int z) {
 RendererStatus set_background_properties(float red, float green, float blue, float brightness) {
 	r.scene.bgColor = (cl_float3){.x = red, .y = green, .z = blue};
 	r.scene.bgBrightness = brightness;
+
+	return RENDERER_SUCCESS;
 }
 
 RendererStatus destroy_scene() {
@@ -34,20 +36,24 @@ RendererStatus destroy_scene() {
 		free(r.scene.voxels);
 		r.scene.voxels = NULL;
 	}
+
+	return RENDERER_SUCCESS;
 }
 
 RendererStatus remove_voxel(int x, int y, int z) {
 	int idx = _get_voxel_index(x, y, z);
 
-	if(idx != -1) {
-		r.scene.voxelCount--;
+	if(idx == -1) return RENDERER_FAILURE;
 
-		for(int i = idx; i < r.scene.voxelCount; i++) {
-			r.scene.voxels[i] = r.scene.voxels[i + 1];
-		}
-		
-		r.scene.voxels = realloc(r.scene.voxels, sizeof(Voxel) * r.scene.voxelCount);
+	r.scene.voxelCount--;
+
+	for(int i = idx; i < r.scene.voxelCount; i++) {
+		r.scene.voxels[i] = r.scene.voxels[i + 1];
 	}
+	
+	r.scene.voxels = realloc(r.scene.voxels, sizeof(Voxel) * r.scene.voxelCount);
+
+	return RENDERER_SUCCESS;
 }
 
 RendererStatus add_voxel(int x, int y, int z, Material material) {
@@ -62,4 +68,6 @@ RendererStatus add_voxel(int x, int y, int z, Material material) {
 	r.scene.voxels = realloc(r.scene.voxels, r.scene.voxelCount * sizeof(Voxel));
 
 	r.scene.voxels[r.scene.voxelCount - 1] = box;
+
+	return RENDERER_SUCCESS;
 }
