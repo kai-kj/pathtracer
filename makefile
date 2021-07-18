@@ -8,8 +8,11 @@ BIN := pathtracer
 # include dir
 INC := -I include/
 
+# library dir
+LIB := -L lib/
+
 # libraries 
-LIBS := -lOpenCL -lm
+LIBS := -lOpenCL -lm -lSDL2
 
 # flags 
 FLAGS := -Wall
@@ -21,7 +24,7 @@ DEFS := -D CL_TARGET_OPENCL_VERSION=300
 #------------------------------------------------------------------------------#
 
 # commands 
-CC := gcc $(FLAGS) $(DEFS) $(INC)
+CC := gcc $(FLAGS) $(DEFS) $(INC) $(LIB)
 MV := mv
 RM := rm -rf
 CP := cp
@@ -49,6 +52,7 @@ debug: clean $(BIN)
 $(BUILD):
 	$(MKDIR) $(BUILD)
 	$(MKDIR) $(BUILD)/renderer
+	$(MKDIR) $(BUILD)/gui
 
 $(BIN): $(BUILD)
 	$(CC) -c $(SRC)/renderer/renderer.c -o $(BUILD)/renderer/renderer.a
@@ -56,9 +60,11 @@ $(BIN): $(BUILD)
 	$(CC) -c $(SRC)/renderer/scene.c -o $(BUILD)/renderer/scene.a
 	$(CC) -c $(SRC)/renderer/camera.c -o $(BUILD)/renderer/camera.a
 	$(CC) -c $(SRC)/renderer/material.c -o $(BUILD)/renderer/material.a
+	$(CC) -c $(SRC)/renderer/global.c -o $(BUILD)/renderer/global.a
+	$(CC) -c $(SRC)/gui/gui.c -o $(BUILD)/gui/gui.a
 	$(CC) -c $(SRC)/main.c -o $(BUILD)/main.o
 
-	$(CC) $(BUILD)/main.o $(BUILD)/renderer/* -o $(BIN) $(LIBS)
+	$(CC) $(BUILD)/main.o $(BUILD)/renderer/* $(BUILD)/gui/* -o $(BIN) $(LIBS)
 
 clean:
-	$(RM) $(BIN) $(BUILD) log.txt render.png
+	$(RM) $(BIN) $(BUILD) log.txt

@@ -1,5 +1,5 @@
 #include <math.h>
-#include "k_util.h"
+#include <k_tools/k_util.h>
 #include "renderer.h"
 
 //---- private ---------------------------------------------------------------//
@@ -29,26 +29,6 @@ static void _print_kernel_run_error(cl_int ret) {
 	}
 }
 
-static void _render_sample(Renderer *renderer, int sampleNumber, int verbose) {
-	cl_ulong seed = rand();
-
-	// non-constant arguments
-	clSetKernelArg(renderer->clProgram.kernel, 6, sizeof(cl_int), &sampleNumber);
-	clSetKernelArg(renderer->clProgram.kernel, 7, sizeof(cl_ulong), &seed);
-
-	size_t pixelCount = renderer->clImage.size.x * renderer->clImage.size.y;
-
-	cl_int ret = clEnqueueNDRangeKernel(renderer->clProgram.queue, renderer->clProgram.kernel, 1, NULL, &pixelCount, NULL, 0, NULL, NULL);
-
-	if(ret != CL_SUCCESS) {
-		_print_kernel_run_error(ret);
-		destroy_renderer(renderer);
-		exit(1);
-	}
-
-	clFinish(renderer->clProgram.queue);
-}
-
 static void _gamma_correct_CLImage(CLImage image) {
 	int pixelCount = image.size.x * image.size.y;
 
@@ -59,7 +39,7 @@ static void _gamma_correct_CLImage(CLImage image) {
 	}
 }
 
-static k_Image *_CLImage_to_Image(CLImage clImage) {
+static k_Image *_CLImage_to_k_Image(CLImage clImage) {
 	k_Image *image = k_create_image(clImage.size.x, clImage.size.y);
 
 	for(int i = 0; i < image->width * image->height; i++) {
@@ -81,51 +61,88 @@ static k_Image *_CLImage_to_Image(CLImage clImage) {
 
 //---- public ----------------------------------------------------------------//
 
-void set_image_properties(Renderer *renderer, int width, int height) {
-	clReleaseMemObject(renderer->clProgram.imageBuff);
+RendererStatus set_image_properties(int width, int height) {
+	if(r.clProgram.imageBuff != NULL) {
+		clReleaseMemObject(r.clProgram.imageBuff);
+		r.clProgram.imageBuff = NULL;
+	}
 
-	renderer->clImage.size = (cl_int2){.x = width, .y = height};
-	renderer->clImage.data = malloc(sizeof(cl_float3) * width * height);
-	renderer->clProgram.imageBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_WRITE, sizeof(cl_float3) * width * height, NULL, NULL);
+	r.clImage.size = (cl_int2){.x = width, .y = height};
+	r.clImage.data = malloc(sizeof(cl_float3) * width * height);
+	r.clProgram.imageBuff = clCreateBuffer(r.clProgram.context, CL_MEM_READ_WRITE, sizeof(cl_float3) * width * height, NULL, NULL);
+
+	return RENDERER_SUCCESS;
 }
 
-k_Image *render_image(Renderer *renderer, int samples, int verbose) {
-	renderer->clProgram.boxBuff = clCreateBuffer(renderer->clProgram.context, CL_MEM_READ_ONLY, sizeof(Voxel) * renderer->scene.voxelCount, NULL, NULL);
-	clEnqueueWriteBuffer(renderer->clProgram.queue, renderer->clProgram.boxBuff, CL_TRUE, 0, sizeof(Voxel) * renderer->scene.voxelCount, renderer->scene.voxels, 0, NULL, NULL);
+RendererStatus begin_image_rendering() {
+	r.clProgram.voxelBuff = clCreateBuffer(r.clProgram.context, CL_MEM_READ_ONLY, sizeof(Voxel) * r.scene.voxelCount, NULL, NULL);
+	clEnqueueWriteBuffer(r.clProgram.queue, r.clProgram.voxelBuff, CL_TRUE, 0, sizeof(Voxel) * r.scene.voxelCount, r.scene.voxels, 0, NULL, NULL);
 
 	// constant arguments
-	clSetKernelArg(renderer->clProgram.kernel, 0, sizeof(cl_int2), &renderer->clImage.size);
-	clSetKernelArg(renderer->clProgram.kernel, 1, sizeof(cl_mem), &renderer->clProgram.imageBuff);
-	clSetKernelArg(renderer->clProgram.kernel, 2, sizeof(cl_int), &renderer->scene.voxelCount);
-	clSetKernelArg(renderer->clProgram.kernel, 3, sizeof(cl_mem), &renderer->clProgram.boxBuff);
-	clSetKernelArg(renderer->clProgram.kernel, 4, sizeof(cl_float3), &renderer->scene.bgColor);
-	clSetKernelArg(renderer->clProgram.kernel, 5, sizeof(Camera), &renderer->camera);
+	clSetKernelArg(r.clProgram.kernel, 0, sizeof(cl_int2), &r.clImage.size);
+	clSetKernelArg(r.clProgram.kernel, 1, sizeof(cl_mem), &r.clProgram.imageBuff);
+	clSetKernelArg(r.clProgram.kernel, 2, sizeof(cl_int), &r.scene.voxelCount);
+	clSetKernelArg(r.clProgram.kernel, 3, sizeof(cl_mem), &r.clProgram.voxelBuff);
+	clSetKernelArg(r.clProgram.kernel, 4, sizeof(cl_float3), &r.scene.bgColor);
+	clSetKernelArg(r.clProgram.kernel, 5, sizeof(cl_float3), &r.scene.bgBrightness);
+	clSetKernelArg(r.clProgram.kernel, 6, sizeof(Camera), &r.camera);
 
-	for(int i = 0; i < samples; i++) {
-		float percent = (float)(i + 1) / (float)samples * 100.0f;
-		msg("Rendering frame %d/%d (%0.1f%%)\n", i + 1, samples, percent);
-		_render_sample(renderer, i, verbose);
-	}
-	
-	clReleaseMemObject(renderer->clProgram.boxBuff);
-
-	size_t pixelCount = renderer->clImage.size.x * renderer->clImage.size.y;
-
-	clEnqueueReadBuffer(renderer->clProgram.queue, renderer->clProgram.imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, renderer->clImage.data, 0, NULL, NULL);
-
-	clFinish(renderer->clProgram.queue);
-
-	_gamma_correct_CLImage(renderer->clImage);
-
-	k_Image *image = _CLImage_to_Image(renderer->clImage);
-
-	return image;
+	return RENDERER_SUCCESS;
 }
 
-void render_image_to_file(Renderer *renderer, int samples, char *fileName, int verbose) {
-	k_Image *image = render_image(renderer, samples, verbose);
+RendererStatus render_sample(int sampleNumber) {
+	cl_ulong seed = rand();
+
+	// non-constant arguments
+	clSetKernelArg(r.clProgram.kernel, 7, sizeof(cl_int), &sampleNumber);
+	clSetKernelArg(r.clProgram.kernel, 8, sizeof(cl_ulong), &seed);
+
+	size_t pixelCount = r.clImage.size.x * r.clImage.size.y;
+
+	cl_int ret = clEnqueueNDRangeKernel(r.clProgram.queue, r.clProgram.kernel, 1, NULL, &pixelCount, NULL, 0, NULL, NULL);
+
+	if(ret != CL_SUCCESS) {
+		_print_kernel_run_error(ret);
+		return RENDERER_FAULURE;
+	}
+
+	clFinish(r.clProgram.queue);
+
+	return RENDERER_SUCCESS;
+}
+
+RendererStatus end_image_rendering() {
+	if(r.clProgram.voxelBuff != NULL) {
+		clReleaseMemObject(r.clProgram.voxelBuff);
+		r.clProgram.voxelBuff = NULL;
+	}
+
+	size_t pixelCount = r.clImage.size.x * r.clImage.size.y;
+
+	clEnqueueReadBuffer(r.clProgram.queue, r.clProgram.imageBuff, CL_TRUE, 0, sizeof(cl_float3) * pixelCount, r.clImage.data, 0, NULL, NULL);
+
+	clFinish(r.clProgram.queue);
+
+	// _gamma_correct_CLImage(r.clImage);
+
+	return RENDERER_SUCCESS;
+}
+
+RendererStatus render_image_to_file(int samples, char *fileName) {
+	begin_image_rendering();
+
+	for(int i = 0; i < samples; i++) {
+		msg("%d/%d\n", i, samples);
+		if(render_sample(i) == RENDERER_FAULURE) return RENDERER_FAULURE;
+	}
+
+	end_image_rendering();
+
+	k_Image *image = _CLImage_to_k_Image(r.clImage);
 
 	k_write_image(image, fileName);
 	
 	k_destroy_image(image);
+
+	return RENDERER_SUCCESS;
 }

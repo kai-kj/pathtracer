@@ -33,10 +33,10 @@ int k_destroy_image(
 
 #ifdef K_IMAGE_IMPLEMENTATION
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-
 #include <string.h>
-#include "stb_image_write.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb/stb_image_write.h"
 
 static char *_get_file_ext(const char *filename) {
 	char *dot = strrchr(filename, '.');

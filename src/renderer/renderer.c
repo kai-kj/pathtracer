@@ -1,5 +1,5 @@
 #include <time.h>
-#include "k_util.h"
+#include <k_tools/k_util.h>
 #include "renderer.h"
 
 #define FILE_NAME "data/kernel/pathtracer.cl"
@@ -8,11 +8,11 @@
 
 //---- private  --------------------------------------------------------------//
 
-static void print_source_read_error() {
+static void _print_source_read_error() {
 	msg("Failed to read source file\n");
 }
 
-static void print_program_build_error(cl_device_id device, cl_program program) {
+static void _print_program_build_error(cl_device_id device, cl_program program) {
 	msg("Failed to build program\n");
 
 	char buffer[0x100000];
@@ -22,51 +22,71 @@ static void print_program_build_error(cl_device_id device, cl_program program) {
 
 //---- public ----------------------------------------------------------------//
 
-Renderer *create_renderer() {
+RendererStatus create_renderer() {
 	srand(time(NULL));
 
-	Renderer *renderer = malloc(sizeof(Renderer));
-
-	renderer->scene = (Scene){
-		0,
-		NULL,
-		{.x = 0, .y = 0, .z = 0}
-	};
+	r.scene.voxelCount = 0;
+	r.clProgram.voxelBuff = NULL;
+	r.clProgram.imageBuff = NULL;
+	r.scene.voxels = NULL;
 
 	// TODO: check platform count
 	cl_uint platformNum;
-	clGetPlatformIDs(1, &renderer->clProgram.platform, &platformNum);
+	clGetPlatformIDs(1, &r.clProgram.platform, &platformNum);
 	cl_uint deviceNum;
-	clGetDeviceIDs(renderer->clProgram.platform, CL_DEVICE_TYPE_GPU, 2, &renderer->clProgram.device, &deviceNum);
+	clGetDeviceIDs(r.clProgram.platform, CL_DEVICE_TYPE_GPU, 2, &r.clProgram.device, &deviceNum);
 
-	renderer->clProgram.context = clCreateContext(0, 1, &renderer->clProgram.device, NULL, NULL, NULL);
-	renderer->clProgram.queue = clCreateCommandQueueWithProperties(renderer->clProgram.context, renderer->clProgram.device, 0, NULL);
+	r.clProgram.context = clCreateContext(0, 1, &r.clProgram.device, NULL, NULL, NULL);
+	r.clProgram.queue = clCreateCommandQueueWithProperties(r.clProgram.context, r.clProgram.device, 0, NULL);
 
 	char *source = read_file(FILE_NAME);
 
 	if(source == NULL) {
-		print_source_read_error();
-		exit(1);
+		_print_source_read_error();
+		return RENDERER_FAULURE;
 	}
 
-	renderer->clProgram.program = clCreateProgramWithSource(renderer->clProgram.context, 1, (const char**)&source, NULL, NULL);
+	r.clProgram.program = clCreateProgramWithSource(r.clProgram.context, 1, (const char**)&source, NULL, NULL);
 
 	free(source);
 
-	if(clBuildProgram(renderer->clProgram.program, 0, NULL, PROGRAM_ARGS, NULL, NULL) != CL_SUCCESS) {
-		print_program_build_error(renderer->clProgram.device, renderer->clProgram.program);
-		exit(1);
+	if(clBuildProgram(r.clProgram.program, 0, NULL, PROGRAM_ARGS, NULL, NULL) != CL_SUCCESS) {
+		_print_program_build_error(r.clProgram.device, r.clProgram.program);
+		return RENDERER_FAULURE;
 	}
 
-	renderer->clProgram.kernel = clCreateKernel(renderer->clProgram.program, KERNEL_NAME, NULL);
+	r.clProgram.kernel = clCreateKernel(r.clProgram.program, KERNEL_NAME, NULL);
 
-	return renderer;
+	return RENDERER_SUCCESS;
 }
 
-void destroy_renderer(Renderer *renderer) {
-	clReleaseMemObject(renderer->clProgram.imageBuff);
-	clReleaseProgram(renderer->clProgram.program);
-	clReleaseKernel(renderer->clProgram.kernel);
-	clReleaseCommandQueue(renderer->clProgram.queue);
-	clReleaseContext(renderer->clProgram.context);
+RendererStatus destroy_renderer() {
+	clReleaseMemObject(r.clProgram.imageBuff);
+
+	if(r.scene.voxels != NULL) {
+		free(r.scene.voxels);
+		r.scene.voxels = NULL;
+	}
+
+	if(r.clImage.data != NULL) {
+		free(r.clImage.data);
+		r.clImage.data = NULL;
+	}
+
+	if(r.clProgram.voxelBuff != NULL) {
+		clReleaseMemObject(r.clProgram.voxelBuff);
+		r.clProgram.voxelBuff = NULL;
+	}
+
+	if(r.clProgram.imageBuff != NULL) {
+		clReleaseMemObject(r.clProgram.imageBuff);
+		r.clProgram.imageBuff = NULL;
+	}
+
+	clReleaseProgram(r.clProgram.program);
+	clReleaseKernel(r.clProgram.kernel);
+	clReleaseCommandQueue(r.clProgram.queue);
+	clReleaseContext(r.clProgram.context);
+
+	return RENDERER_SUCCESS;
 }

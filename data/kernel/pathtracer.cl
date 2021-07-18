@@ -61,6 +61,7 @@ typedef struct Renderer {
 	int voxelCount;
 	global Voxel *voxels;
 	float3 bgColor;
+	float bgBrightness;
 	Camera camera;
 	ulong *rng;
 } Renderer;
@@ -181,7 +182,7 @@ constant int3 returnValues[6] = {
 	(int3){0, 0, 1}
 };
 
-int3 get_ray_box_normal(Ray ray, Voxel voxel, float3 dirFrac) {
+int3 get_ray_voxel_normal(Ray ray, Voxel voxel, float3 dirFrac) {
 	float t[6];
 
 	t[0] = (voxel.pos.x - ray.origin.x) * dirFrac.x;
@@ -198,7 +199,7 @@ int3 get_ray_box_normal(Ray ray, Voxel voxel, float3 dirFrac) {
 
 //---- ray -------------------------------------------------------------------//
 
-bool cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *material) {
+bool cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Voxel *voxel) {
 	bool hit = false;
 	float minDist;
 	int minIdx = -1;
@@ -224,8 +225,8 @@ bool cast_ray(Renderer *r, Ray ray, float3 *hitPos, int3 *normal, Material *mate
 	if(!hit) return false;
 
 	*hitPos = ray.origin + ray.direction * minDist;
-	*normal = get_ray_box_normal(ray, r->voxels[minIdx], dirFrac);
-	*material = r->voxels[minIdx].material;
+	*normal = get_ray_voxel_normal(ray, r->voxels[minIdx], dirFrac);
+	*voxel = r->voxels[minIdx];
 
 	return true;
 }
@@ -238,19 +239,21 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 	float3 mask = 1;
 	float3 color = 0;
 	
-	for(int i = 0; i < maxDepth; i++) {
+	for(int i = 0; i < 10; i++) {
 		float3 hitPos;
 		int3 iNormal;
-		Material material;
+		Voxel voxel;
 		
-		if(cast_ray(r, ray, &hitPos, &iNormal, &material)) {
+		if(cast_ray(r, ray, &hitPos, &iNormal, &voxel)) {
+			Material material = voxel.material;
 			float3 fNormal = convert_float3(iNormal);
 			hitPos += fNormal * 0.01f;
 
 			// TODO: dielectric material
 			switch(material.type) {
 				case MATERIAL_TYPE_LIGHT_SOURCE:
-					color = mask * material.color * material.details.lightSource.brightness;
+					// TODO: better lighting
+					color = material.color * mask * material.details.lightSource.brightness;
 					returnFlag = true;
 					break;
 				
@@ -270,13 +273,16 @@ float3 get_color(Renderer *r, Ray ray, int maxDepth) {
 					mask = mask * (1 - material.details.metal.tint) + mask * material.color * material.details.metal.tint;
 					break;
 				
+				case MATERIAL_TYPE_DIELECTRIC:
+					break;
+				
 				default:
 					break;
 
 			}
 
 		} else {
-			color = mask * r->bgColor;
+			color = mask * r->bgColor * r->bgBrightness;
 			returnFlag = true;
 		
 		}
@@ -319,6 +325,7 @@ kernel void renderer(
 	int2 imageSize, global float3 *image,
 	int voxelCount, global Voxel *voxels,
 	float3 bgColor,
+	float bgBrightness,
 	Camera camera,
 	int sampleNumber,
 	ulong seed
@@ -330,6 +337,7 @@ kernel void renderer(
 		imageSize, image,
 		voxelCount, voxels,
 		bgColor,
+		bgBrightness,
 		camera,
 		&rng
 	};

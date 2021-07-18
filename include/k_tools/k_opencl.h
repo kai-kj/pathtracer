@@ -27,7 +27,7 @@ void k_print_error_message(k_CLProgram clProgram);
 #ifdef K_OPENCL_IMPLEMENTATION
 
 #include <stdlib.h>
-#include <k_util.h>
+#include <k_tools/k_util.h>
 
 static void _print_program_build_error(cl_device_id device, cl_program program) {
 	char buffer[0x100000];

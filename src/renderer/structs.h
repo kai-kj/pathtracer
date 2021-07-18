@@ -11,7 +11,7 @@ typedef struct CLProgram {
 	cl_program program;
 	cl_kernel kernel;
 	cl_mem imageBuff;
-	cl_mem boxBuff;
+	cl_mem voxelBuff;
 } CLProgram;
 
 typedef struct CLImage {
@@ -53,6 +53,7 @@ typedef struct Scene {
 	cl_int voxelCount;
 	Voxel *voxels;
 	cl_float3 bgColor;
+	cl_float bgBrightness;
 } Scene;
 
 typedef struct Camera {
