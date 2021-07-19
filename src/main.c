@@ -113,8 +113,10 @@ int main(void) {
 	);
 
 	
-	create_window(SCREEN_WIDTH, SCREEN_HEIGHT);
-	start_main_loop();
+	if(create_window(SCREEN_WIDTH, SCREEN_HEIGHT) == GUI_SUCCESS)
+		start_main_loop();
+	
+	close_window();
 
 	// render_image_to_file(samples, "render.png");
 

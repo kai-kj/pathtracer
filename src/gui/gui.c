@@ -47,14 +47,6 @@ SDL_Surface *_get_render_surface() {
 	return surface;
 }
 
-void _print_text(char *text) {
-	SDL_Color color = {255, 255, 255};
-	SDL_Rect dest = {0, 0, 0, 0};
-	SDL_Surface* message = TTF_RenderText_Solid(s.font, text, color);
-	SDL_BlitSurface(message, NULL, s.renderSurface, &dest);
-	SDL_FreeSurface(message);
-}
-
 void _update_dt() {
 	unsigned long int currentTime = SDL_GetPerformanceCounter();
 	s.dt = ((float)currentTime - (float)s.prevFrameTime) / (float)SDL_GetPerformanceFrequency();
@@ -62,85 +54,90 @@ void _update_dt() {
 }
 
 void _procces_events() {
-	float movementSpeed = 1;
-	float turnSpeed = M_PI / 16;
 	SDL_Event e;
 
 	while(SDL_PollEvent(&e) != 0) {
 		if(e.type == SDL_QUIT) {
 			s.quit = 1;
 		
-		} else if(e.type == SDL_KEYDOWN) {
-			switch(e.key.keysym.sym) {
-				case SDLK_ESCAPE:
-					s.quit = 1;
-					break;
-				
-				case SDLK_w:
-					r.camera.pos.z += movementSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_s:
-					r.camera.pos.z -= movementSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_a:
-					r.camera.pos.x -= movementSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_d:
-					r.camera.pos.x += movementSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_q:
-					r.camera.pos.y += movementSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_e:
-					r.camera.pos.y -= movementSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_UP:
-					r.camera.rot.x += turnSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_DOWN:
-					r.camera.rot.x -= turnSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_LEFT:
-					r.camera.rot.y -= turnSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-				
-				case SDLK_RIGHT:
-					r.camera.rot.y += turnSpeed * s.dt;
-					r.restartRender = 1;
-					break;
-
-			}
 		}
+	}
+}
+
+void _process_kb_input() {
+	float movementSpeed = 1;
+	float turnSpeed = M_PI / 32;
+
+	SDL_PumpEvents();
+
+	if(s.keyState[SDL_SCANCODE_Q]) {
+		s.quit = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_W]) {
+		r.camera.pos.z += movementSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_S]) {
+		r.camera.pos.z -= movementSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_A]) {
+		r.camera.pos.x -= movementSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_D]) {
+		r.camera.pos.x += movementSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_LCTRL]) {
+		r.camera.pos.y += movementSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_SPACE]) {
+		r.camera.pos.y -= movementSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_UP]) {
+		r.camera.rot.x += turnSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_DOWN]) {
+		r.camera.rot.x -= turnSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_LEFT]) {
+		r.camera.rot.y -= turnSpeed * s.dt;
+		r.restartRender = 1;
+	}
+	
+	if(s.keyState[SDL_SCANCODE_RIGHT]) {
+		r.camera.rot.y += turnSpeed * s.dt;
+		r.restartRender = 1;
 	}
 }
 
 //---- public ----------------------------------------------------------------//
 
 GUIStatus create_window(int width, int height) {
+	if(SDL_Init(SDL_INIT_VIDEO) < 0) return GUI_FAILURE;
+	if(TTF_Init() < 0) return GUI_FAILURE;
+
 	s.window = NULL;
 	s.windowSurface = NULL;
 	s.renderSurface = NULL;
 	s.prevFrameTime = SDL_GetPerformanceCounter();
-	s.font = TTF_OpenFont("opensans.ttf", 24);
+	// s.font = TTF_OpenFont("opensans.ttf", 24);
+	s.keyState = SDL_GetKeyboardState(NULL);
 
-	if(SDL_Init( SDL_INIT_VIDEO ) < 0) return GUI_FAILURE;
 	s.window = SDL_CreateWindow("pathtracer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_SHOWN);
 	if(s.window == NULL) return GUI_FAILURE;
 	s.windowSurface = SDL_GetWindowSurface(s.window);
@@ -156,6 +153,7 @@ GUIStatus start_main_loop() {
 	while(!s.quit) {
 		_update_dt();
 		_procces_events();
+		_process_kb_input();
 
 		if(r.restartRender) {
 			r.restartRender = 0;
@@ -166,13 +164,14 @@ GUIStatus start_main_loop() {
 		render_sample(frame);
 		read_image();
 
+		if(s.renderSurface != NULL) {
+			SDL_FreeSurface(s.renderSurface);
+			s.renderSurface = NULL;
+		}
+
 		s.renderSurface = _get_render_surface();
 
 		SDL_BlitSurface(s.renderSurface, NULL, s.windowSurface, NULL);
-
-		char fps[100];
-		sprintf(fps, "%f", 1 / s.dt);
-		_print_text(fps);
 
 		SDL_UpdateWindowSurface(s.window);
 
@@ -180,6 +179,24 @@ GUIStatus start_main_loop() {
 	}
 
 	end_image_rendering();
+
+	return GUI_SUCCESS;
+}
+
+GUIStatus close_window() {
+	if(s.renderSurface != NULL) {
+		SDL_FreeSurface(s.renderSurface);
+		s.renderSurface = NULL;
+	}
+
+	if(s.renderSurface != NULL) {
+		SDL_FreeSurface(s.windowSurface);
+		s.windowSurface = NULL;
+	}
+
+	SDL_DestroyWindow(s.window);
+	TTF_Quit();
+	SDL_Quit();
 
 	return GUI_SUCCESS;
 }

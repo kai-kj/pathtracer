@@ -14,5 +14,6 @@ extern SDLState s;
 
 GUIStatus create_window(int width, int height);
 GUIStatus start_main_loop();
+GUIStatus close_window();
 
 #endif
